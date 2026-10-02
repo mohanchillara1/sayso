@@ -37,7 +37,13 @@ async function run<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObject
   })
 }
 
-export const savePhrase = (p: SavedPhrase) => run<IDBValidKey>("phrases", "readwrite", (s) => s.put(p)) as Promise<number>
+// A new phrase must not carry an `id` key at all: IndexedDB rejects {id: undefined}
+// ("not a valid key") instead of generating one.
+export const savePhrase = (p: SavedPhrase) => {
+  const record: SavedPhrase = { text: p.text, words: p.words, createdAt: p.createdAt }
+  if (p.id != null) record.id = p.id
+  return run<IDBValidKey>("phrases", "readwrite", (s) => s.put(record)) as Promise<number>
+}
 export const listPhrases = () => run<SavedPhrase[]>("phrases", "readonly", (s) => s.getAll())
 export const deletePhrase = (id: number) => run<undefined>("phrases", "readwrite", (s) => s.delete(id))
 export const saveSession = (r: SessionRecord) => run<IDBValidKey>("sessions", "readwrite", (s) => s.add(r))

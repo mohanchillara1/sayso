@@ -68,15 +68,21 @@ export function analyseWord(raw: string): Word {
 /** Split or merge written pieces until there are `target` of them, if we can. */
 function fitPieces(pieces: string[], target: number): string[] {
   let out = [...pieces]
-  // Too few: split the longest piece at a vowel-group boundary.
+  // Too few: split the longest piece at a vowel-group boundary, then (if still
+  // short) between two vowels that are usually said separately ("Ma|ri|a").
   let guard = 0
   while (out.length < target && guard++ < 10) {
     const i = longestSplittable(out)
-    if (i < 0) break
-    const parts = vowelGroupSplit(out[i])
-    if (parts.length < 2) break
-    const half = Math.ceil(parts.length / 2)
-    out.splice(i, 1, parts.slice(0, half).join(""), parts.slice(half).join(""))
+    if (i >= 0) {
+      const parts = vowelGroupSplit(out[i])
+      const half = Math.ceil(parts.length / 2)
+      out.splice(i, 1, parts.slice(0, half).join(""), parts.slice(half).join(""))
+      continue
+    }
+    const j = out.findIndex((p) => hiatusAt(p) > 0)
+    if (j < 0) break
+    const at = hiatusAt(out[j])
+    out.splice(j, 1, out[j].slice(0, at), out[j].slice(at))
   }
   // Too many: merge the shortest neighbouring pair.
   while (out.length > target && out.length > 1) {
@@ -95,6 +101,14 @@ function longestSplittable(pieces: string[]): number {
     if (vowelGroupSplit(p).length > 1 && (best < 0 || p.length > pieces[best].length)) best = i
   })
   return best
+}
+
+// Vowel pairs that are usually two syllables ("ri-a", "e-o"), unlike "ea", "oo", "ou".
+const HIATUS = ["ia", "io", "eo", "ua", "uo", "iu"]
+function hiatusAt(piece: string): number {
+  const low = piece.toLowerCase()
+  for (let k = 1; k < low.length; k++) if (HIATUS.includes(low.slice(k - 1, k + 1))) return k
+  return -1
 }
 
 /** Rough written split: break before a consonant that follows a vowel group. */
