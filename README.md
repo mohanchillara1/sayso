@@ -4,18 +4,29 @@ A practice tool, used alongside a speech-language pathologist. Not a treatment.
 
 For people with aphasia and the family who practise with them. One word list, two modes:
 
-- **Sing it**: type a phrase ("I need water"). It gets split into syllables, the stressed
-  ones are marked, and a two-note melody plays (stressed = high, unstressed = low) with a
-  moving highlight. Five steps: listen, tap along, sing together, fade, say it alone.
-  Tap timing (beats hit, mean offset) is saved on the device.
-- **Name it**: add a photo of a thing or person plus the word. The person sees the photo
+- **Name it**: add a photo of a thing or person plus the word. The person looks at the photo
   and tries to say it. Hints come one tap at a time: first letter, a sentence the caregiver
-  wrote, then the whole word written and spoken. "I said it" / "Not yet" is the answer (no
-  speech recognition). Words that were hard come back sooner (5 review boxes).
+  wrote, then the whole word written and spoken (with the device's own voice). **The helper
+  decides** whether it was said, with three buttons: Clear, Close, Not yet. Only Clear moves a
+  word to a longer wait (5 review boxes); Close and Not yet bring it back the same day.
+  The app does not listen. There is no speech recognition and no audio recording.
+- **Sing it**: type a short phrase (up to 12 syllables). Small grammar words (the, my, to...)
+  are sung low and the content words high; each later high note steps down a semitone, so one
+  phrase has one peak. A two-note tune plays with a moving highlight. Five steps: listen, tap
+  along, sing together, fade, say it alone. The person sees no score; tap timing (hit rate
+  with extra taps counted against it) is only saved for the helper or SLP, under Progress.
+  The melody rule is our own simplification of spoken-phrase prosody. **Nobody has listened to
+  it yet and no SLP has checked it.**
 
 A word saved in one mode shows up in the other: a word with a photo is in both.
-Tempo, notes, fade rounds and the tap window are **placeholders** until a speech-language
+Speed, pitch, step size and fade rounds are **starting values we picked** until a speech-language
 pathologist sets them (Settings).
+
+## What it does not do
+No offline mode yet (no service worker: it needs the network the first time it loads and may
+not reopen without it). No accounts, no server, nothing sent anywhere by the app; photos and history
+live in this browser's storage on this device, which the browser may clear, so Settings has
+"Save a backup". Not reviewed by any speech-language pathologist. Not tested on real phones.
 
 ## Run it
 Needs Node 18+.
@@ -53,9 +64,10 @@ and flagged for the caregiver to fix in the editor.
 ## Look
 Flat colour fields (tomato for Sing it, deep green for Name it, yellow for "now"), thick
 outlines, Bricolage Grotesque for headings and Atkinson Hyperlegible (made for low-vision
-readers) for text, both self-hosted so it works offline. Targets are 56px or bigger
+readers) for text, both bundled in the app. Targets are 56px or bigger
 (the dots in the melody editor are the one exception), text is never under 15px.
 
 ## Status
-Prototype scaffold, now with both modes. See `AI-USAGE.md`: this version was generated with AI and the
-students must own and rewrite it before any submission.
+Prototype. See `AI-USAGE.md`: all of this code was written by an AI model (Claude), including every
+fix since 2026-10-04. The students have not rewritten any of it yet, and must read, rewrite and be able
+to explain it before any submission.
