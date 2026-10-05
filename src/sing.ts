@@ -200,6 +200,6 @@ export function sessionScreen(phrase: SavedPhrase) {
     )
   }
 
-  show("sing", () => void singPick(), bar, title, say, h("div", { class: "panel" }, strip), pad, status, dock)
+  show("sing", () => void singPick(), bar, title, say, h("div", { class: "panel session-panel" }, strip), pad, status, dock)
   setStep(0)
 }

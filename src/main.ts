@@ -1,6 +1,9 @@
 // Sayso: two practice modes (Sing it, Name it) on one shared word list.
 // Plain DOM, no framework, so every line is easy to read and rewrite.
 // Screens here: first-run note, home, word list, add/edit a word, progress, settings.
+import "@fontsource/bricolage-grotesque/800.css"
+import "@fontsource/atkinson-hyperlegible/400.css"
+import "@fontsource/atkinson-hyperlegible/700.css"
 import "./style.css"
 import { loadDict, dictSize } from "./dict"
 import { analysePhrase } from "./syllables"
