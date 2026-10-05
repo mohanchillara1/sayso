@@ -2,14 +2,32 @@
 import type { Word } from "./syllables"
 import type { TapResult } from "./scoring"
 
-export type SavedPhrase = { id?: number; text: string; words: Word[]; createdAt: number }
+// One list for both modes. Every item has text (used by Sing it). An item with a
+// photo can also be used by Name it; cue/box/due only matter there.
+export type SavedPhrase = {
+  id?: number
+  text: string
+  words: Word[]
+  createdAt: number
+  photo?: Blob
+  /** Caregiver-written sentence cue, e.g. "I drink coffee from my ___". */
+  cue?: string
+  /** Review box 1..5 (Name it). */
+  box?: number
+  /** When it is next due, ms since epoch. */
+  due?: number
+}
 export type SessionRecord = {
   id?: number
   phraseId: number
   phraseText: string
   at: number
-  tap: TapResult
-  stepsCompleted: number
+  mode?: "sing" | "name"
+  tap?: TapResult
+  stepsCompleted?: number
+  /** Name it: 0 = said it with no hint, 1 first letter, 2 sentence, 3 whole word shown. */
+  cueLevel?: number
+  said?: boolean
 }
 
 const DB_NAME = "singback"
@@ -40,8 +58,8 @@ async function run<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObject
 // A new phrase must not carry an `id` key at all: IndexedDB rejects {id: undefined}
 // ("not a valid key") instead of generating one.
 export const savePhrase = (p: SavedPhrase) => {
-  const record: SavedPhrase = { text: p.text, words: p.words, createdAt: p.createdAt }
-  if (p.id != null) record.id = p.id
+  const record: SavedPhrase = { ...p }
+  if (record.id == null) delete record.id
   return run<IDBValidKey>("phrases", "readwrite", (s) => s.put(record)) as Promise<number>
 }
 export const listPhrases = () => run<SavedPhrase[]>("phrases", "readonly", (s) => s.getAll())
