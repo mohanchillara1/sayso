@@ -62,8 +62,8 @@ body[data-mode="name"] .top, body[data-mode="name"] .note { color: #fff; }
 /* panels */
 .panel { background: var(--paper); border: 3px solid var(--ink); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); color: var(--ink); }
 .field { display: grid; gap: 6px; margin-bottom: 14px; font-weight: 700; }
-.field input, .field textarea { font: inherit; font-weight: 400; font-size: 1.15rem; padding: 14px; border: 3px solid var(--ink); border-radius: 14px; background: #fff; width: 100%; color: var(--ink); }
-.field input:focus, .field textarea:focus, .btn:focus-visible, .back:focus-visible, .chip:focus-visible, .gap:focus-visible { outline: 4px solid var(--sun); outline-offset: 2px; }
+.field input, .field textarea, .field select { font: inherit; font-weight: 400; font-size: 1.15rem; padding: 14px; border: 3px solid var(--ink); border-radius: 14px; background: #fff; width: 100%; color: var(--ink); }
+.field input:focus, .field textarea:focus, .field select:focus, .btn:focus-visible, .back:focus-visible, .chip:focus-visible, .gap:focus-visible { outline: 4px solid var(--sun); outline-offset: 2px; }
 .warn { background: var(--sun); border: 3px solid var(--ink); border-radius: 14px; padding: 12px 14px; }
 
 /* home */
@@ -136,3 +136,8 @@ body[data-mode="name"] .top, body[data-mode="name"] .note { color: #fff; }
 @media (min-width: 700px) { :root { font-size: 21px; } .mode { min-height: 30dvh; } }
 .dock.flat { position: static; padding: 0; }
 body[data-mode="name"] .screen > h1, body[data-mode="name"] .screen > h2 { color: #fff; }
+.three { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 10px; }
+.three .btn { padding: 8px 4px; min-height: 76px; }
+.ask { margin: 4px 0 0; text-align: center; }
+.t2 { font-size: clamp(1.9rem, 7vw, 2.6rem); }
+.strip { max-height: 30dvh; overflow-y: auto; }

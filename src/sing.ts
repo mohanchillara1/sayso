@@ -1,8 +1,8 @@
 // Sing it: pick a phrase, fix its melody if needed, then the 5-step practice
 // (listen, tap along, sing together, fade, say alone).
-import { h, button, show, fmtMs } from "./ui"
+import { h, button, show, guard } from "./ui"
 import { beatsOf, type Word } from "./syllables"
-import { audio, scheduleMelody, followBeats, wait, type Scheduled } from "./audio"
+import { audio, scheduleMelody, followBeats, wait, currentEpoch, cancelled, type Scheduled } from "./audio"
 import { scoreTaps, type TapResult } from "./scoring"
 import { loadSettings } from "./settings"
 import { savePhrase, listPhrases, saveSession, type SavedPhrase } from "./db"
@@ -18,8 +18,8 @@ export async function singPick() {
       ? h("p", { class: "say" }, "Pick a phrase.")
       : h("div", { class: "panel empty" }, h("p", { class: "say" }, "No phrases yet."), h("p", {}, "Add one to start.")),
     h("ul", { class: "list" }, ...items.map((p) => h("li", {},
-      h("button", { class: "item", type: "button", onclick: () => sessionScreen(p) },
-        h("span", { class: "t" }, p.text, h("small", {}, `${beatsOf(p.words).length} beats`)),
+      h("button", { class: "item", type: "button", onclick: guard(() => sessionScreen(p)) },
+        h("span", { class: "t" }, p.text, h("small", {}, `${beatsOf(p.words).length} ${beatsOf(p.words).length === 1 ? "syllable" : "syllables"}`)),
         h("span", {}, "▶"),
       )))),
     h("div", { class: "dock" }, button("Add a phrase", () => itemScreen(undefined, "sing"), items.length ? "btn" : "btn go")),
@@ -43,18 +43,18 @@ export function editorScreen(item: SavedPhrase, back: () => void) {
       const letterRow = h("div", { class: "letters" })
       ;[...letters].forEach((ch, i) => {
         if (i > 0) letterRow.append(h("button", {
-          class: `gap ${breaks.has(i) ? "on" : ""}`, type: "button", title: "Add or remove a break",
-          onclick: () => { toggleBreak(w, i); render() },
+          class: `gap ${breaks.has(i) ? "on" : ""}`, type: "button", title: "Split or join here",
+          onclick: guard(() => { toggleBreak(w, i); render() }),
         }, breaks.has(i) ? "|" : "·"))
         letterRow.append(h("span", {}, ch))
       })
       return h("div", { class: `word ${w.check ? "check" : ""}` },
         h("div", { class: "chips" }, ...w.syllables.map((s, si) => h("button", {
-          class: `chip ${w.stressed[si] ? "hi" : ""}`, type: "button", title: "Tap to switch high/low",
-          onclick: () => { w.stressed[si] = !w.stressed[si]; w.check = false; render() },
+          class: `chip ${w.stressed[si] ? "hi" : ""}`, type: "button", title: "Tap to sing this one high or low",
+          onclick: guard(() => { w.stressed[si] = !w.stressed[si]; w.check = false; render() }),
         }, s))),
         letterRow,
-        h("small", { class: "soft" }, w.check ? "Check the breaks and the high syllable." : "From the dictionary."),
+        h("small", { class: "soft" }, w.check ? "Check where it splits and which part is high." : w.fn ? "Small word, sung low." : "From the dictionary."),
       )
     }))
     strip.replaceChildren(...beatsOf(ws).map((b) => h("span", { class: `beat ${b.stressed ? "hi" : ""}` }, b.text)))
@@ -63,9 +63,9 @@ export function editorScreen(item: SavedPhrase, back: () => void) {
 
   show("sing", back,
     h("h2", {}, item.text),
-    h("p", {}, "Raised = high note. Tap a syllable to switch it. Tap a dot between letters to add a break, a bar to remove one."),
+    h("p", {}, "Raised blocks are sung high. Tap a block to move it up or down. Tap a dot between letters to split the word there, or the bar to join it."),
     area,
-    h("h3", {}, "Melody"),
+    h("h3", {}, "The tune"),
     h("div", { class: "panel" }, strip),
     h("div", { class: "dock two" },
       button("▶ Play", () => void playWithHighlight(ws, strip, 1), "btn"),
@@ -96,6 +96,7 @@ function toggleBreak(w: Word, at: number) {
 }
 
 async function playWithHighlight(words: Word[], strip: HTMLElement, gain: number): Promise<Scheduled> {
+  audio() // start the audio clock from the tap
   const sched = scheduleMelody(beatsOf(words).map((b) => b.stressed), loadSettings(), gain)
   const spans = [...strip.querySelectorAll(".beat")]
   followBeats(sched, (i) => spans.forEach((el, k) => el.classList.toggle("now", k === i)))
@@ -107,8 +108,8 @@ async function playWithHighlight(words: Word[], strip: HTMLElement, gain: number
 const STEPS = [
   { title: "Listen", say: "Listen and watch the words light up." },
   { title: "Tap along", say: "Tap the pad on each syllable." },
-  { title: "Sing together", say: "Sing it with the melody." },
-  { title: "Fade", say: "Keep singing. The melody gets quieter." },
+  { title: "Sing together", say: "Sing it with the tune." },
+  { title: "Fade", say: "Keep singing. The tune gets quieter." },
   { title: "Say it alone", say: "Now say it on your own." },
 ]
 
@@ -116,6 +117,8 @@ export function sessionScreen(phrase: SavedPhrase) {
   const settings = loadSettings()
   let step = 0
   let tap: TapResult | null = null
+  const played = new Set<number>() // steps that were actually played through
+  let finished = false
   const beats = beatsOf(phrase.words)
   const strip = h("div", { class: "strip huge" }, ...beats.map((b) => h("span", { class: `beat ${b.stressed ? "hi" : ""}` }, b.text)))
   const bar = h("div", { class: "bar" }, ...STEPS.map(() => h("i")))
@@ -145,6 +148,8 @@ export function sessionScreen(phrase: SavedPhrase) {
 
   const runStep = async () => {
     audio()
+    const ep = currentEpoch()
+    const stop = () => cancelled(ep) // true once the person left this screen
     dock.querySelectorAll("button").forEach((b) => (b.disabled = true))
     const stressed = beats.map((b) => b.stressed)
     if (step === 0 || step === 2) {
@@ -154,25 +159,36 @@ export function sessionScreen(phrase: SavedPhrase) {
     } else if (step === 1) {
       const taps: number[] = []
       pad.disabled = false
-      const onTap = (e: PointerEvent) => {
-        e.preventDefault()
-        taps.push(audio().currentTime)
+      let lastTap = -1
+      const addTap = () => {
+        const t = audio().currentTime
+        if (t - lastTap < 0.05) return // one touch that registers twice
+        lastTap = t
+        taps.push(t)
         pad.classList.add("hit")
         setTimeout(() => pad.classList.remove("hit"), 90)
       }
+      const onTap = (e: PointerEvent) => { e.preventDefault(); addTap() }
+      // Keyboard or switch: Space or Enter taps too.
+      const onKey = (e: KeyboardEvent) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (!e.repeat) addTap() } }
       pad.addEventListener("pointerdown", onTap)
+      document.addEventListener("keydown", onKey)
       const s = scheduleMelody(stressed, settings, 1, 1.0)
       highlight(s)
       await wait(s.endTime + s.beatSeconds / 2)
       pad.removeEventListener("pointerdown", onTap)
+      document.removeEventListener("keydown", onKey)
       pad.disabled = true
+      if (stop()) return
       tap = scoreTaps(s.beatTimes, taps, s.beatSeconds, settings.hitWindowMs)
-      status.textContent = `${tap.hits} of ${tap.beats} on the beat · ${fmtMs(tap.meanAbsOffsetMs)} off${tap.meanSignedOffsetMs == null ? "" : tap.meanSignedOffsetMs < 0 ? ", early" : ", late"}`
+      // The person sees no score. The numbers are only logged, for the helper or the SLP.
+      status.textContent = taps.length ? "Good. Tapped along." : "No taps this time. That is fine."
     } else if (step === 3) {
       const reps = Math.max(1, settings.fadeRepeats)
       for (let r = 0; r < reps; r++) {
+        if (stop()) return
         const gain = 1 - (r + 1) / (reps + 1)
-        status.textContent = `Round ${r + 1} of ${reps} · melody at ${Math.round(gain * 100)}%`
+        status.textContent = `Round ${r + 1} of ${reps}`
         const s = scheduleMelody(stressed, settings, gain)
         highlight(s)
         await wait(s.endTime + s.beatSeconds)
@@ -183,18 +199,21 @@ export function sessionScreen(phrase: SavedPhrase) {
       highlight(s)
       await wait(s.endTime)
     }
+    if (stop()) return
+    played.add(step)
     dock.querySelectorAll("button").forEach((b) => (b.disabled = false))
   }
 
   const finish = async () => {
-    const result: TapResult = tap ?? { beats: beats.length, hits: 0, hitRate: 0, meanAbsOffsetMs: null, meanSignedOffsetMs: null, taps: 0 }
-    if (phrase.id != null) await saveSession({ phraseId: phrase.id, phraseText: phrase.text, at: Date.now(), mode: "sing", tap: result, stepsCompleted: 5 })
+    if (finished) return
+    finished = true
+    const result: TapResult | undefined = tap ?? undefined
+    if (phrase.id != null) await saveSession({ phraseId: phrase.id, phraseText: phrase.text, at: Date.now(), mode: "sing", tap: result, stepsCompleted: played.size })
     show("sing", null,
       h("h1", {}, "Saved."),
       h("div", { class: "panel" },
         h("p", { class: "say" }, `“${phrase.text}”`),
-        h("p", {}, tap ? `Tap along: ${result.hits} of ${result.beats} on the beat, ${fmtMs(result.meanAbsOffsetMs)} off.` : "You skipped the tap step."),
-        h("p", { class: "soft" }, "This only measures timing. It does not judge speech."),
+        h("p", { class: "soft" }, `Steps played: ${played.size} of 5.`),
       ),
       h("div", { class: "dock two" }, button("Again", () => sessionScreen(phrase), "btn"), button("Home", () => void homeScreen(), "btn go")),
     )
