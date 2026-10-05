@@ -1,321 +1,177 @@
-// SingBack — screens and flow. Plain DOM, no framework, so every line is easy
-// to read and rewrite. Screens: disclaimer, home, editor, session, settings.
+// Sayso: two practice modes (Sing it, Name it) on one shared word list.
+// Plain DOM, no framework, so every line is easy to read and rewrite.
+// Screens here: first-run note, home, word list, add/edit a word, progress, settings.
 import "./style.css"
 import { loadDict, dictSize } from "./dict"
-import { analysePhrase, beatsOf, type Word } from "./syllables"
-import { audio, scheduleMelody, followBeats, wait, type Scheduled } from "./audio"
-import { scoreTaps, type TapResult } from "./scoring"
+import { analysePhrase } from "./syllables"
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, type Settings } from "./settings"
-import { savePhrase, listPhrases, deletePhrase, saveSession, listSessions, type SavedPhrase } from "./db"
+import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase } from "./db"
+import { h, button, show, fmtMs, shrinkPhoto, DISCLAIMER } from "./ui"
+import { singPick, editorScreen } from "./sing"
+import { namePick } from "./name"
 
-const app = document.querySelector<HTMLDivElement>("#app")!
-let settings: Settings = loadSettings()
-const DISCLAIMER = "A practice tool, used alongside a speech-language pathologist. Not a treatment."
 const ACK_KEY = "singback.ack"
 
-// ---------- tiny helpers ----------
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
-  const el = document.createElement(tag)
-  const { class: cls, ...rest } = props as Record<string, unknown>
-  if (cls) el.className = cls as string
-  Object.assign(el, rest)
-  el.append(...kids)
-  return el
-}
-const button = (label: string, onClick: () => void, cls = "btn") => h("button", { class: cls, type: "button", onclick: onClick }, label)
-function show(...nodes: Node[]) {
-  app.replaceChildren(h("header", { class: "bar" }, h("strong", {}, "SingBack"), h("span", { class: "fine" }, DISCLAIMER)), ...nodes)
-}
-const fmtMs = (v: number | null) => (v == null ? "—" : `${Math.round(v)} ms`)
-
-// ---------- disclaimer ----------
-function disclaimerScreen() {
-  show(
-    h("main", { class: "card center" },
-      h("h1", {}, "Before you start"),
-      h("p", { class: "big" }, DISCLAIMER),
-      h("p", {}, "SingBack plays a simple two-note melody for a phrase you type, so it can be practised by listening, tapping, singing along, and then saying it alone. The tempo and notes are placeholders until a speech-language pathologist sets them."),
-      h("p", {}, "Everything stays on this device. There is no account and nothing is uploaded."),
-      button("I understand", () => {
-        try { localStorage.setItem(ACK_KEY, "1") } catch { /* ignore */ }
-        void homeScreen()
-      }, "btn primary"),
+// ---------- first run ----------
+function noteScreen() {
+  show("home", null,
+    h("h1", {}, "Before you start"),
+    h("div", { class: "panel" },
+      h("p", { class: "say" }, DISCLAIMER),
+      h("p", {}, "Sing it turns a phrase into a two-note melody to listen to, tap and sing along with. Name it shows a photo and gives hints, one tap at a time."),
+      h("p", {}, "The tempo and notes are placeholders until a speech-language pathologist sets them. Everything stays on this device. No account, nothing uploaded."),
     ),
+    h("div", { class: "dock" }, button("I understand", () => {
+      try { localStorage.setItem(ACK_KEY, "1") } catch { /* ignore */ }
+      void homeScreen()
+    }, "btn go")),
   )
 }
 
 // ---------- home ----------
-async function homeScreen() {
-  const input = h("input", { class: "phrase", placeholder: "Type a phrase, e.g. I need water", value: "" })
-  const go = () => { if (input.value.trim()) editorScreen(input.value.trim(), analysePhrase(input.value)) }
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go() })
-
-  const phrases = await listPhrases().catch(() => [] as SavedPhrase[])
-  const sessions = (await listSessions().catch(() => [])).sort((a, b) => b.at - a.at).slice(0, 20)
-
-  show(
-    h("main", { class: "stack" },
-      h("section", { class: "card" }, h("h2", {}, "New phrase"), input, button("Make the melody", go, "btn primary")),
-      h("section", { class: "card" },
-        h("h2", {}, "Saved phrases"),
-        phrases.length
-          ? h("ul", { class: "list" }, ...phrases.map((p) => h("li", {},
-              h("span", { class: "grow" }, p.text),
-              button("Practise", () => sessionScreen(p), "btn primary small"),
-              button("Edit", () => editorScreen(p.text, p.words, p.id), "btn small"),
-              button("Remove", async () => { if (p.id != null && confirm(`Remove "${p.text}"?`)) { await deletePhrase(p.id); void homeScreen() } }, "btn small ghost"),
-            )))
-          : h("p", { class: "muted" }, "None yet."),
-      ),
-      h("section", { class: "card" },
-        h("h2", {}, "History"),
-        sessions.length
-          ? h("table", { class: "hist" },
-              h("thead", {}, h("tr", {}, ...["When", "Phrase", "Beats hit", "Mean offset", "Early/late"].map((t) => h("th", {}, t)))),
-              h("tbody", {}, ...sessions.map((s) => h("tr", {},
-                h("td", {}, new Date(s.at).toLocaleString()),
-                h("td", {}, s.phraseText),
-                h("td", {}, `${s.tap.hits}/${s.tap.beats} (${Math.round(s.tap.hitRate * 100)}%)`),
-                h("td", {}, fmtMs(s.tap.meanAbsOffsetMs)),
-                h("td", {}, s.tap.meanSignedOffsetMs == null ? "—" : s.tap.meanSignedOffsetMs < 0 ? `${fmtMs(-s.tap.meanSignedOffsetMs)} early` : `${fmtMs(s.tap.meanSignedOffsetMs)} late`),
-              ))))
-          : h("p", { class: "muted" }, "No sessions yet."),
-      ),
-      h("nav", { class: "row" }, button("Settings", settingsScreen, "btn"), button("About", disclaimerScreen, "btn ghost")),
-      h("p", { class: "fine" }, `Dictionary: ${dictSize().toLocaleString()} words (CMU Pronouncing Dictionary).`),
-    ),
-  )
-  input.focus()
-}
-
-// ---------- editor ----------
-// Tap a syllable to switch its stress (high/low note). Tap the gap between two
-// letters to add or remove a syllable break. Words marked "check" were guessed.
-function editorScreen(text: string, words: Word[], id?: number) {
-  const ws: Word[] = words.map((w) => ({ ...w, syllables: [...w.syllables], stressed: [...w.stressed] }))
-  const area = h("div", { class: "words" })
-  const strip = h("div", { class: "strip" })
-
-  const render = () => {
-    area.replaceChildren(...ws.map((w) => {
-      const letters = w.syllables.join("")
-      const breaks = new Set<number>()
-      let n = 0
-      w.syllables.slice(0, -1).forEach((s) => { n += s.length; breaks.add(n) })
-
-      const letterRow = h("div", { class: "letters" })
-      ;[...letters].forEach((ch, i) => {
-        if (i > 0) {
-          letterRow.append(h("button", {
-            class: `gap ${breaks.has(i) ? "on" : ""}`, type: "button", title: "Add or remove a syllable break",
-            onclick: () => { toggleBreak(w, i); render() },
-          }, breaks.has(i) ? "|" : "·"))
-        }
-        letterRow.append(h("span", { class: "letter" }, ch))
-      })
-
-      return h("div", { class: `word ${w.check ? "check" : ""}` },
-        h("div", { class: "chips" }, ...w.syllables.map((s, si) => h("button", {
-          class: `chip ${w.stressed[si] ? "hi" : "lo"}`, type: "button", title: "Tap to switch high/low",
-          onclick: () => { w.stressed[si] = !w.stressed[si]; w.check = false; render() },
-        }, s))),
-        letterRow,
-        h("div", { class: "fine" }, w.source === "dict" ? (w.check ? "In the dictionary, but the written split needs checking" : "From the dictionary") : "Not in the dictionary: check the breaks and the stressed syllable"),
-      )
-    }))
-    strip.replaceChildren(...beatsOf(ws).map((b) => h("span", { class: `beat ${b.stressed ? "hi" : "lo"}` }, b.text)))
-  }
-  render()
-
-  show(
-    h("main", { class: "stack" },
-      h("section", { class: "card" },
-        h("h2", {}, `“${text}”`),
-        h("p", { class: "muted" }, "Big/raised = high note (stressed). Tap a syllable to switch it. Tap a dot between letters to add a break; tap a bar to remove one."),
-        area,
-        h("h3", {}, "Melody"),
-        strip,
-        h("div", { class: "row" },
-          button("▶ Preview", () => playWithHighlight(ws, strip, 1), "btn"),
-          button("Save and practise", async () => {
-            const newId = await savePhrase({ id, text, words: ws, createdAt: Date.now() })
-            sessionScreen({ id: newId, text, words: ws, createdAt: Date.now() })
-          }, "btn primary"),
-          button("Back", () => void homeScreen(), "btn ghost"),
-        ),
-      ),
+export async function homeScreen() {
+  show("home", null,
+    h("p", { class: "hello" }, "What are we practising today?"),
+    h("button", { class: "mode sing", type: "button", onclick: () => void singPick() }, h("b", {}, "Sing it"), h("span", {}, "Say a phrase with a melody."), h("i", {}, "→")),
+    h("button", { class: "mode name", type: "button", onclick: () => void namePick() }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo."), h("i", {}, "→")),
+    h("nav", { class: "links" },
+      button("Words", () => void wordsScreen(), "btn"),
+      button("Progress", () => void progressScreen(), "btn"),
+      button("Settings", settingsScreen, "btn"),
     ),
   )
 }
 
-function toggleBreak(w: Word, at: number) {
-  const letters = w.syllables.join("")
-  const cuts: number[] = []
-  let n = 0
-  w.syllables.slice(0, -1).forEach((s) => { n += s.length; cuts.push(n) })
-  const i = cuts.indexOf(at)
-  const oldStress = [...w.stressed]
-  if (i >= 0) {
-    cuts.splice(i, 1)
-    oldStress.splice(i + 1, 1) // merged syllable keeps the first one's stress
-  } else {
-    cuts.push(at)
-    cuts.sort((a, b) => a - b)
-    oldStress.splice(cuts.indexOf(at) + 1, 0, false) // new syllable starts unstressed
-  }
-  const bounds = [0, ...cuts, letters.length]
-  w.syllables = bounds.slice(0, -1).map((b, k) => letters.slice(b, bounds[k + 1]))
-  w.stressed = w.syllables.map((_, k) => oldStress[k] ?? false)
-  w.check = false
+// ---------- word list (shared by both modes) ----------
+export async function wordsScreen() {
+  const items = (await listPhrases().catch(() => [] as SavedPhrase[])).sort((a, b) => b.createdAt - a.createdAt)
+  show("home", () => void homeScreen(),
+    h("h2", {}, "Words"),
+    items.length
+      ? h("p", { class: "soft" }, "Both modes use this list. Add a photo to a word and it shows up in Name it.")
+      : h("div", { class: "panel empty" }, h("p", { class: "say" }, "Nothing here yet."), h("p", {}, "Add the words and names this person needs.")),
+    h("ul", { class: "list" }, ...items.map((p) => h("li", {},
+      h("button", { class: "item", type: "button", onclick: () => itemScreen(p, "words") },
+        thumb(p),
+        h("span", { class: "t" }, p.text, h("small", {}, p.photo ? "Sing it · Name it" : "Sing it only")),
+      )))),
+    h("div", { class: "dock" }, button("Add a word", () => itemScreen(undefined, "words"), "btn go")),
+  )
 }
 
-async function playWithHighlight(words: Word[], strip: HTMLElement, gain: number): Promise<Scheduled> {
-  const beats = beatsOf(words)
-  const sched = scheduleMelody(beats.map((b) => b.stressed), settings, gain)
-  const spans = [...strip.querySelectorAll(".beat")]
-  followBeats(sched, (i) => spans.forEach((el, k) => el.classList.toggle("now", k === i)))
-  await wait(sched.endTime)
-  return sched
+function thumb(p: SavedPhrase) {
+  if (!p.photo) return h("span", { class: "thumb none" }, p.text.charAt(0).toUpperCase())
+  return h("img", { class: "thumb", src: URL.createObjectURL(p.photo), alt: "" })
 }
 
-// ---------- session: listen → tap along → sing together → fade → say alone ----------
-const STEPS = [
-  { title: "Listen", say: "Listen to the melody and watch the words light up." },
-  { title: "Tap along", say: "Tap the big pad once on each syllable, with the melody." },
-  { title: "Sing together", say: "Sing the phrase with the melody." },
-  { title: "Fade", say: "Keep singing. The melody gets quieter each time." },
-  { title: "Say it alone", say: "Now say the phrase on your own while the words light up." },
-]
+// ---------- add / edit one word ----------
+export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "name" | "words") {
+  const back = () => (from === "sing" ? void singPick() : from === "name" ? void namePick() : void wordsScreen())
+  let photo: Blob | undefined = existing?.photo
+  const text = h("input", { type: "text", value: existing?.text ?? "", placeholder: "Maria, I need water" })
+  const cue = h("input", { type: "text", value: existing?.cue ?? "", placeholder: "I drink coffee from my ___" })
+  const preview = h("div", {})
+  const showPhoto = () => preview.replaceChildren(photo ? h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" }) : h("span"))
+  const file = h("input", { type: "file", accept: "image/*", hidden: true })
+  file.addEventListener("change", async () => {
+    const f = file.files?.[0]
+    if (f) { photo = await shrinkPhoto(f); showPhoto() }
+  })
+  showPhoto()
 
-function sessionScreen(phrase: SavedPhrase) {
-  let step = 0
-  let tap: TapResult | null = null
-  const beats = beatsOf(phrase.words)
-  const strip = h("div", { class: "strip huge" }, ...beats.map((b) => h("span", { class: `beat ${b.stressed ? "hi" : "lo"}` }, b.text)))
-  const dots = h("ol", { class: "steps" }, ...STEPS.map((s) => h("li", {}, s.title)))
-  const title = h("h2", {})
-  const say = h("p", { class: "big" })
-  const status = h("p", { class: "muted" })
-  const controls = h("div", { class: "row" })
-  const pad = h("button", { class: "pad", type: "button", disabled: true }, "TAP")
-
-  const highlight = (sched: Scheduled) => {
-    const spans = [...strip.querySelectorAll(".beat")]
-    followBeats(sched, (i) => spans.forEach((el, k) => el.classList.toggle("now", k === i)))
+  const save = async () => {
+    const t = text.value.trim()
+    if (!t) { text.focus(); return }
+    const changed = !existing || existing.text !== t
+    const rec: SavedPhrase = {
+      ...(existing ?? { createdAt: Date.now() }),
+      text: t,
+      words: changed ? analysePhrase(t) : existing!.words,
+      photo,
+      cue: cue.value.trim() || undefined,
+    } as SavedPhrase
+    rec.id = await savePhrase(rec)
+    if (changed && rec.words.some((w) => w.check)) editorScreen(rec, back) // check guessed splits first
+    else back()
   }
 
-  const setStep = (i: number) => {
-    step = i
-    ;[...dots.children].forEach((li, k) => { li.className = k < i ? "done" : k === i ? "now" : "" })
-    title.textContent = `Step ${i + 1} of 5 · ${STEPS[i].title}`
-    say.textContent = STEPS[i].say
-    status.textContent = ""
-    pad.hidden = i !== 1
-    controls.replaceChildren(
-      button(i === 1 ? "▶ Start (then tap)" : "▶ Play", () => void runStep(), "btn primary huge-btn"),
-      button(i === 4 ? "Finish" : "Next step →", () => (i === 4 ? void finish() : setStep(i + 1)), "btn huge-btn"),
-    )
-  }
+  show("home", back,
+    h("h2", {}, existing ? "Edit word" : "Add a word"),
+    h("div", { class: "panel" },
+      h("label", { class: "field" }, "The word or phrase", text),
+      h("label", { class: "field" }, "Sentence hint (optional)", cue),
+      preview,
+      file,
+      button(photo ? "Change photo" : "Take or choose a photo", () => file.click(), "btn"),
+    ),
+    h("div", { class: "dock" },
+      button("Save", save, "btn go"),
+      existing ? h("div", { class: "dock two flat" },
+        button("Melody", () => editorScreen(existing, () => itemScreen(existing, from)), "btn"),
+        button("Remove", async () => { if (existing.id != null && confirm(`Remove "${existing.text}"?`)) { await deletePhrase(existing.id); back() } }, "btn quiet"),
+      ) : "",
+    ),
+  )
+}
 
-  const runStep = async () => {
-    audio()
-    controls.querySelectorAll("button").forEach((b) => (b.disabled = true))
-    const stressed = beats.map((b) => b.stressed)
-    if (step === 0 || step === 2) {
-      const s = scheduleMelody(stressed, settings, 1)
-      highlight(s)
-      await wait(s.endTime)
-    } else if (step === 1) {
-      const taps: number[] = []
-      pad.disabled = false
-      const onTap = (e: PointerEvent) => {
-        e.preventDefault()
-        taps.push(audio().currentTime)
-        pad.classList.add("hit")
-        setTimeout(() => pad.classList.remove("hit"), 90)
-      }
-      pad.addEventListener("pointerdown", onTap)
-      const s = scheduleMelody(stressed, settings, 1, 1.0)
-      highlight(s)
-      await wait(s.endTime + s.beatSeconds / 2)
-      pad.removeEventListener("pointerdown", onTap)
-      pad.disabled = true
-      tap = scoreTaps(s.beatTimes, taps, s.beatSeconds, settings.hitWindowMs)
-      status.textContent = `Beats hit: ${tap.hits} of ${tap.beats} · mean offset ${fmtMs(tap.meanAbsOffsetMs)}${tap.meanSignedOffsetMs == null ? "" : tap.meanSignedOffsetMs < 0 ? " (early)" : " (late)"}`
-    } else if (step === 3) {
-      const reps = Math.max(1, settings.fadeRepeats)
-      for (let r = 0; r < reps; r++) {
-        const gain = 1 - (r + 1) / (reps + 1) // e.g. 0.75, 0.5, 0.25 for 3 repeats
-        status.textContent = `Repeat ${r + 1} of ${reps} · melody at ${Math.round(gain * 100)}%`
-        const s = scheduleMelody(stressed, settings, gain)
-        highlight(s)
-        await wait(s.endTime + s.beatSeconds)
-      }
-      status.textContent = "Done fading."
-    } else {
-      const s = scheduleMelody(stressed, settings, 0) // highlight only, no sound
-      highlight(s)
-      await wait(s.endTime)
-    }
-    controls.querySelectorAll("button").forEach((b) => (b.disabled = false))
-  }
-
-  const finish = async () => {
-    const result: TapResult = tap ?? { beats: beats.length, hits: 0, hitRate: 0, meanAbsOffsetMs: null, meanSignedOffsetMs: null, taps: 0 }
-    if (phrase.id != null) await saveSession({ phraseId: phrase.id, phraseText: phrase.text, at: Date.now(), tap: result, stepsCompleted: 5 })
-    show(h("main", { class: "card center" },
-      h("h1", {}, "Session saved"),
-      h("p", { class: "big" }, `“${phrase.text}”`),
-      h("p", {}, `Tap along: ${result.hits} of ${result.beats} beats (${Math.round(result.hitRate * 100)}%), mean offset ${fmtMs(result.meanAbsOffsetMs)}.`),
-      h("p", { class: "fine" }, "This measures timing only. It does not judge speech."),
-      h("div", { class: "row" }, button("Practise again", () => sessionScreen(phrase), "btn primary"), button("Home", () => void homeScreen(), "btn")),
-    ))
-  }
-
-  show(h("main", { class: "card session" }, dots, title, say, strip, pad, status, controls, button("Quit", () => void homeScreen(), "btn ghost")))
-  setStep(0)
+// ---------- progress ----------
+const CUE = ["no hint", "first letter", "sentence hint", "needed the word"]
+async function progressScreen() {
+  const rows = (await listSessions().catch(() => [])).sort((a, b) => b.at - a.at).slice(0, 40)
+  show("home", () => void homeScreen(),
+    h("h2", {}, "Progress"),
+    rows.length ? h("div", { class: "log" }, ...rows.map((s) => h("div", { class: "item" },
+      h("span", { class: "t" },
+        `${s.mode === "name" ? "Name" : "Sing"} · ${s.phraseText}`,
+        h("small", {}, `${new Date(s.at).toLocaleString()} · ` + (s.mode === "name"
+          ? (s.said ? `said it, ${CUE[s.cueLevel ?? 0]}` : "not yet")
+          : s.tap ? `${s.tap.hits}/${s.tap.beats} on the beat, ${fmtMs(s.tap.meanAbsOffsetMs)} off` : "no taps")),
+      )))) : h("div", { class: "panel empty" }, h("p", { class: "say" }, "No sessions yet.")),
+    h("p", { class: "soft" }, "Shows what happened, not how good it was. Bring this to the speech-language pathologist."),
+  )
 }
 
 // ---------- settings ----------
 function settingsScreen() {
+  let settings = loadSettings()
   const field = (key: keyof Settings, label: string, step = 1) => {
     const input = h("input", { type: "number", step: String(step), value: String(settings[key]) })
     input.addEventListener("change", () => {
       const v = Number(input.value)
       if (Number.isFinite(v) && v > 0) { settings = { ...settings, [key]: v }; saveSettings(settings) }
     })
-    return h("label", { class: "field" }, h("span", {}, label), input)
+    return h("label", { class: "field" }, label, input)
   }
-  show(h("main", { class: "card" },
+  show("home", () => void homeScreen(),
     h("h2", {}, "Settings"),
-    h("p", { class: "warn" }, "These are placeholders we picked, not clinical values. A speech-language pathologist should set them for each person."),
-    field("tempoBpm", "Tempo (syllables per minute)"),
-    field("highHz", "High note (Hz)"),
-    field("intervalSemitones", "Gap to the low note (semitones)"),
-    field("fadeRepeats", "Fade repeats"),
-    field("hitWindowMs", "Tap counts as on the beat within (ms)"),
-    h("div", { class: "row" },
-      button("Reset to defaults", () => { settings = { ...DEFAULT_SETTINGS }; saveSettings(settings); settingsScreen() }, "btn ghost"),
-      button("Done", () => void homeScreen(), "btn primary"),
+    h("p", { class: "warn" }, "Placeholders we picked, not clinical values. A speech-language pathologist should set them for each person."),
+    h("div", { class: "panel" },
+      field("tempoBpm", "Tempo (syllables per minute)"),
+      field("highHz", "High note (Hz)"),
+      field("intervalSemitones", "Gap to the low note (semitones)"),
+      field("fadeRepeats", "Fade rounds"),
+      field("hitWindowMs", "On the beat within (ms)"),
     ),
-  ))
+    h("div", { class: "dock two" },
+      button("Reset", () => { saveSettings({ ...DEFAULT_SETTINGS }); settingsScreen() }, "btn quiet"),
+      button("About", noteScreen, "btn"),
+    ),
+    h("p", { class: "soft" }, `Dictionary: ${dictSize().toLocaleString()} words (CMU Pronouncing Dictionary).`),
+  )
 }
 
 // ---------- boot ----------
 async function boot() {
-  show(h("main", { class: "card center" }, h("p", {}, "Loading the dictionary…")))
+  show("home", null, h("p", { class: "say" }, "Loading…"))
   try {
     await loadDict()
   } catch (e) {
-    show(h("main", { class: "card center" }, h("p", { class: "warn" }, String(e))))
+    show("home", null, h("p", { class: "warn" }, String(e)))
     return
   }
   let acked = false
   try { acked = localStorage.getItem(ACK_KEY) === "1" } catch { /* ignore */ }
   if (acked) void homeScreen()
-  else disclaimerScreen()
+  else noteScreen()
 }
 void boot()
-
-// Exposed for quick checks in the browser console / headless tests.
-;(window as unknown as Record<string, unknown>).__singback = { analysePhrase, scoreTaps, beatsOf }
