@@ -1,0 +1,9 @@
+{
+  "name": "Sayso",
+  "short_name": "Sayso",
+  "description": "A practice tool, used alongside a speech-language pathologist. Not a treatment.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5eedf",
+  "theme_color": "#f5eedf"
+}
