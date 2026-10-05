@@ -5,6 +5,19 @@ import { lowHz, type Settings } from "./settings"
 
 let ctx: AudioContext | null = null
 
+// Leaving a screen must silence everything still scheduled. stopAll() bumps the
+// epoch (so waiting loops know to quit) and stops every note that was queued.
+let epoch = 0
+const live = new Set<OscillatorNode>()
+export const currentEpoch = () => epoch
+export const liveCount = () => live.size
+export const cancelled = (ep: number) => ep !== epoch
+export function stopAll() {
+  epoch++
+  for (const o of live) { try { o.stop() } catch { /* already stopped */ } }
+  live.clear()
+}
+
 /** Browsers only allow audio after a tap, so call this from a click handler. */
 export function audio(): AudioContext {
   if (!ctx) ctx = new AudioContext()
@@ -30,7 +43,16 @@ export function scheduleMelody(
   const start = ac.currentTime + startDelay
   const beatTimes = stressed.map((_, i) => start + i * beat)
   if (gain > 0) {
-    stressed.forEach((isHigh, i) => tone(ac, isHigh ? settings.highHz : lowHz(settings), beatTimes[i], beat * 0.8, gain))
+    // One peak per phrase: the first high note is the highest and each later high
+    // note steps down a semitone (never below one semitone above the low note), the
+    // way a spoken phrase drifts down. Unchecked by ear.
+    const room = Math.max(0, Math.round(settings.intervalSemitones) - 1)
+    let k = 0
+    stressed.forEach((isHigh, i) => {
+      let hz = lowHz(settings)
+      if (isHigh) { hz = settings.highHz / Math.pow(2, Math.min(k, room) / 12); k++ }
+      tone(ac, hz, beatTimes[i], beat * 0.8, gain)
+    })
   }
   return { beatTimes, beatSeconds: beat, endTime: start + stressed.length * beat }
 }
@@ -46,6 +68,8 @@ function tone(ac: AudioContext, hz: number, at: number, dur: number, gain: numbe
   amp.gain.setValueAtTime(0.35 * gain, at + dur - 0.06)
   amp.gain.linearRampToValueAtTime(0, at + dur)
   osc.connect(amp).connect(ac.destination)
+  live.add(osc)
+  osc.onended = () => live.delete(osc)
   osc.start(at)
   osc.stop(at + dur + 0.02)
 }
@@ -53,9 +77,11 @@ function tone(ac: AudioContext, hz: number, at: number, dur: number, gain: numbe
 /** Calls onBeat(i) as each beat starts (i = -1 when finished). Returns a cancel function. */
 export function followBeats(s: Scheduled, onBeat: (i: number) => void): () => void {
   const ac = audio()
+  const ep = epoch
   let last = -2
   let raf = 0
   const tick = () => {
+    if (ep !== epoch) return
     const t = ac.currentTime
     let i = -1
     for (let k = 0; k < s.beatTimes.length; k++) if (t >= s.beatTimes[k]) i = k

@@ -5,13 +5,15 @@
 export type TapResult = {
   beats: number
   hits: number
-  /** Share of beats hit, 0..1. */
+  /** Share of beats hit, 0..1, out of whichever is larger: beats or taps (extra taps cost). */
   hitRate: number
   /** Mean of |tap - beat| over matched taps, in ms (null if no taps matched). */
   meanAbsOffsetMs: number | null
   /** Mean signed offset in ms: negative = early, positive = late. */
   meanSignedOffsetMs: number | null
   taps: number
+  /** Taps that matched no beat. */
+  extraTaps: number
 }
 
 export function scoreTaps(beatTimes: number[], tapTimes: number[], beatSeconds: number, hitWindowMs: number): TapResult {
@@ -39,9 +41,11 @@ export function scoreTaps(beatTimes: number[], tapTimes: number[], beatSeconds: 
   return {
     beats: beatTimes.length,
     hits,
-    hitRate: beatTimes.length ? hits / beatTimes.length : 0,
+    // Extra taps count against the score, so tapping all the time cannot give 100%.
+    hitRate: beatTimes.length ? hits / Math.max(beatTimes.length, tapTimes.length) : 0,
     meanAbsOffsetMs: mean(offsets.map(Math.abs)),
     meanSignedOffsetMs: mean(offsets),
     taps: tapTimes.length,
+    extraTaps: tapTimes.length - used.size,
   }
 }

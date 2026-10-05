@@ -27,6 +27,8 @@ export type SessionRecord = {
   stepsCompleted?: number
   /** Name it: 0 = said it with no hint, 1 first letter, 2 sentence, 3 whole word shown. */
   cueLevel?: number
+  /** Name it: what the helper pressed. */
+  result?: "clear" | "close" | "notyet"
   said?: boolean
 }
 
@@ -46,12 +48,16 @@ function open(): Promise<IDBDatabase> {
   })
 }
 
+// Resolve when the transaction has committed, not when the request returns, so a
+// quick Back press cannot lose a write.
 async function run<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await open()
   return new Promise((resolve, reject) => {
-    const req = fn(db.transaction(store, mode).objectStore(store))
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    const tx = db.transaction(store, mode)
+    const req = fn(tx.objectStore(store))
+    tx.oncomplete = () => resolve(req.result)
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
   })
 }
 
