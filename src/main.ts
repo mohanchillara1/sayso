@@ -6,12 +6,13 @@ import "@fontsource/atkinson-hyperlegible/400.css"
 import "@fontsource/atkinson-hyperlegible/700.css"
 import "./style.css"
 import { loadDict, dictSize } from "./dict"
-import { analysePhrase } from "./syllables"
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, type Settings } from "./settings"
+import { analysePhrase, beatsOf, prepare, MAX_BEATS } from "./syllables"
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, LIMITS, clampSettings } from "./settings"
 import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase } from "./db"
-import { h, button, show, fmtMs, shrinkPhoto, DISCLAIMER } from "./ui"
+import { h, button, show, fmtMs, shrinkPhoto, guard, DISCLAIMER } from "./ui"
 import { singPick, editorScreen } from "./sing"
-import { namePick } from "./name"
+import { namePick, firstLetter } from "./name"
+import { liveCount } from "./audio"
 
 const ACK_KEY = "singback.ack"
 
@@ -21,8 +22,9 @@ function noteScreen() {
     h("h1", {}, "Before you start"),
     h("div", { class: "panel" },
       h("p", { class: "say" }, DISCLAIMER),
-      h("p", {}, "Sing it turns a phrase into a two-note melody to listen to, tap and sing along with. Name it shows a photo and gives hints, one tap at a time."),
-      h("p", {}, "The tempo and notes are placeholders until a speech-language pathologist sets them. Everything stays on this device. No account, nothing uploaded."),
+      h("p", {}, "Name it: for finding the word for a thing or a person. A photo, then hints one tap at a time. The helper says if it was said."),
+      h("p", {}, "Sing it: for getting a short phrase out, with a simple two-note tune."),
+      h("p", {}, "Photos and notes stay on this device. No account."),
     ),
     h("div", { class: "dock" }, button("I understand", () => {
       try { localStorage.setItem(ACK_KEY, "1") } catch { /* ignore */ }
@@ -35,8 +37,8 @@ function noteScreen() {
 export async function homeScreen() {
   show("home", null,
     h("p", { class: "hello" }, "What are we practising today?"),
-    h("button", { class: "mode sing", type: "button", onclick: () => void singPick() }, h("b", {}, "Sing it"), h("span", {}, "Say a phrase with a melody."), h("i", {}, "→")),
-    h("button", { class: "mode name", type: "button", onclick: () => void namePick() }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo."), h("i", {}, "→")),
+    h("button", { class: "mode sing", type: "button", onclick: guard(() => void singPick()) }, h("b", {}, "Sing it"), h("span", {}, "Say a phrase with a melody."), h("i", {}, "→")),
+    h("button", { class: "mode name", type: "button", onclick: guard(() => void namePick()) }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo."), h("i", {}, "→")),
     h("nav", { class: "links" },
       button("Words", () => void wordsScreen(), "btn"),
       button("Progress", () => void progressScreen(), "btn"),
@@ -54,9 +56,9 @@ export async function wordsScreen() {
       ? h("p", { class: "soft" }, "Both modes use this list. Add a photo to a word and it shows up in Name it.")
       : h("div", { class: "panel empty" }, h("p", { class: "say" }, "Nothing here yet."), h("p", {}, "Add the words and names this person needs.")),
     h("ul", { class: "list" }, ...items.map((p) => h("li", {},
-      h("button", { class: "item", type: "button", onclick: () => itemScreen(p, "words") },
+      h("button", { class: "item", type: "button", onclick: guard(() => itemScreen(p, "words")) },
         thumb(p),
-        h("span", { class: "t" }, p.text, h("small", {}, p.photo ? "Sing it · Name it" : "Sing it only")),
+        h("span", { class: "t" }, p.text, h("small", {}, p.photo ? "Name it and Sing it" : "Sing it only (add a photo for Name it)")),
       )))),
     h("div", { class: "dock" }, button("Add a word", () => itemScreen(undefined, "words"), "btn go")),
   )
@@ -71,7 +73,7 @@ function thumb(p: SavedPhrase) {
 export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "name" | "words") {
   const back = () => (from === "sing" ? void singPick() : from === "name" ? void namePick() : void wordsScreen())
   let photo: Blob | undefined = existing?.photo
-  const text = h("input", { type: "text", value: existing?.text ?? "", placeholder: "Maria, I need water" })
+  const text = h("input", { type: "text", value: existing?.text ?? "", placeholder: "Maria, I need water", maxLength: 80 })
   const cue = h("input", { type: "text", value: existing?.cue ?? "", placeholder: "I drink coffee from my ___" })
   const preview = h("div", {})
   const showPhoto = () => preview.replaceChildren(photo ? h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" }) : h("span"))
@@ -82,25 +84,48 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
   })
   showPhoto()
 
-  const save = async () => {
-    const t = text.value.trim()
-    if (!t) { text.focus(); return }
-    const changed = !existing || existing.text !== t
-    const rec: SavedPhrase = {
+  const problem = h("p", { class: "warn", hidden: true })
+  const complain = (msg: string) => { problem.textContent = msg; problem.hidden = false; text.focus() }
+
+  /** Builds the record from the form; null (with a message shown) if the text is not usable. */
+  const build = (): SavedPhrase | null => {
+    const clean = prepare(text.value)
+    if (clean.problem) { complain(clean.problem); return null }
+    const changed = !existing || existing.text !== clean.text
+    const words = changed ? analysePhrase(clean.text) : existing!.words
+    const count = beatsOf(words).length
+    if (count > MAX_BEATS) { complain(`That is ${count} syllables. Keep it to ${MAX_BEATS} or fewer so the tune fits.`); return null }
+    problem.hidden = true
+    return {
       ...(existing ?? { createdAt: Date.now() }),
-      text: t,
-      words: changed ? analysePhrase(t) : existing!.words,
+      text: clean.text,
+      words,
       photo,
       cue: cue.value.trim() || undefined,
     } as SavedPhrase
+  }
+
+  const save = async () => {
+    const rec = build()
+    if (!rec) return
+    const changed = !existing || existing.text !== rec.text
     rec.id = await savePhrase(rec)
     if (changed && rec.words.some((w) => w.check)) editorScreen(rec, back) // check guessed splits first
     else back()
   }
 
+  // Melody: save what is typed first, so nothing typed is lost on the way.
+  const melody = async () => {
+    const rec = build()
+    if (!rec) return
+    rec.id = await savePhrase(rec)
+    editorScreen(rec, () => itemScreen(rec, from))
+  }
+
   show("home", back,
     h("h2", {}, existing ? "Edit word" : "Add a word"),
     h("div", { class: "panel" },
+      problem,
       h("label", { class: "field" }, "The word or phrase", text),
       h("label", { class: "field" }, "Sentence hint (optional)", cue),
       preview,
@@ -110,7 +135,7 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
     h("div", { class: "dock" },
       button("Save", save, "btn go"),
       existing ? h("div", { class: "dock two flat" },
-        button("Melody", () => editorScreen(existing, () => itemScreen(existing, from)), "btn"),
+        button("Edit tune", melody, "btn"),
         button("Remove", async () => { if (existing.id != null && confirm(`Remove "${existing.text}"?`)) { await deletePhrase(existing.id); back() } }, "btn quiet"),
       ) : "",
     ),
@@ -119,48 +144,72 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
 
 // ---------- progress ----------
 const CUE = ["no hint", "first letter", "sentence hint", "needed the word"]
+const RESULT = { clear: "clear", close: "close", notyet: "not yet" } as const
 async function progressScreen() {
   const rows = (await listSessions().catch(() => [])).sort((a, b) => b.at - a.at).slice(0, 40)
+  const detail = (s: (typeof rows)[number]) => {
+    if (s.mode === "name") return `${RESULT[s.result ?? (s.said ? "clear" : "notyet")]}, ${CUE[s.cueLevel ?? 0]}`
+    const t = s.tap
+    return t ? `tap timing ${Math.round(t.hitRate * 100)}%: ${t.hits} of ${t.beats} beats hit, ${t.extraTaps} extra taps, ${fmtMs(t.meanAbsOffsetMs)} off` : "no taps"
+  }
   show("home", () => void homeScreen(),
     h("h2", {}, "Progress"),
     rows.length ? h("div", { class: "log" }, ...rows.map((s) => h("div", { class: "item" },
       h("span", { class: "t" },
-        `${s.mode === "name" ? "Name" : "Sing"} · ${s.phraseText}`,
-        h("small", {}, `${new Date(s.at).toLocaleString()} · ` + (s.mode === "name"
-          ? (s.said ? `said it, ${CUE[s.cueLevel ?? 0]}` : "not yet")
-          : s.tap ? `${s.tap.hits}/${s.tap.beats} on the beat, ${fmtMs(s.tap.meanAbsOffsetMs)} off` : "no taps")),
+        `${s.mode === "name" ? "Name it" : "Sing it"} · ${s.phraseText}`,
+        h("small", {}, `${new Date(s.at).toLocaleString()} · ${detail(s)}`),
       )))) : h("div", { class: "panel empty" }, h("p", { class: "say" }, "No sessions yet.")),
-    h("p", { class: "soft" }, "Shows what happened, not how good it was. Bring this to the speech-language pathologist."),
+    h("p", { class: "soft" }, "A record of what happened, for the helper and the speech-language pathologist. The app does not judge speech."),
   )
 }
 
 // ---------- settings ----------
 function settingsScreen() {
   let settings = loadSettings()
-  const field = (key: keyof Settings, label: string, step = 1) => {
-    const input = h("input", { type: "number", step: String(step), value: String(settings[key]) })
-    input.addEventListener("change", () => {
-      const v = Number(input.value)
-      if (Number.isFinite(v) && v > 0) { settings = { ...settings, [key]: v }; saveSettings(settings) }
-    })
-    return h("label", { class: "field" }, label, input)
+  const set = (patch: Partial<typeof settings>) => { settings = clampSettings({ ...settings, ...patch }); saveSettings(settings) }
+  const num = (key: "tempoBpm" | "fadeRepeats", label: string) => {
+    const [lo, hi] = LIMITS[key]
+    const input = h("input", { type: "number", min: String(lo), max: String(hi), step: "1", value: String(settings[key]) })
+    input.addEventListener("change", () => { set({ [key]: Number(input.value) }); input.value = String(settings[key]) })
+    return h("label", { class: "field" }, `${label} (${lo} to ${hi})`, input)
   }
+  const pick = (key: "highHz" | "intervalSemitones", label: string, opts: [string, number][]) => {
+    const sel = h("select", {}, ...opts.map(([name, v]) => h("option", { value: String(v), selected: settings[key] === v }, name)))
+    sel.addEventListener("change", () => set({ [key]: Number(sel.value) }))
+    return h("label", { class: "field" }, label, sel)
+  }
+  const persisted = h("p", { class: "soft" }, "")
+  void navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? "Storage: the browser will keep your photos and history." : "Storage: the browser may clear photos and history if the device runs low on space. Save a backup now and then." })
   show("home", () => void homeScreen(),
     h("h2", {}, "Settings"),
-    h("p", { class: "warn" }, "Placeholders we picked, not clinical values. A speech-language pathologist should set them for each person."),
+    h("p", { class: "warn" }, "These are starting values we picked. A speech-language pathologist should set them for each person."),
     h("div", { class: "panel" },
-      field("tempoBpm", "Tempo (syllables per minute)"),
-      field("highHz", "High note (Hz)"),
-      field("intervalSemitones", "Gap to the low note (semitones)"),
-      field("fadeRepeats", "Fade rounds"),
-      field("hitWindowMs", "On the beat within (ms)"),
+      num("tempoBpm", "Speed: syllables per minute"),
+      pick("highHz", "How high the high notes are", [["Lower", 262], ["Middle", 330], ["Higher", 392]]),
+      pick("intervalSemitones", "Gap between high and low", [["Small", 2], ["Medium", 3], ["Large", 5]]),
+      num("fadeRepeats", "Fade rounds"),
     ),
     h("div", { class: "dock two" },
       button("Reset", () => { saveSettings({ ...DEFAULT_SETTINGS }); settingsScreen() }, "btn quiet"),
-      button("About", noteScreen, "btn"),
+      button("Save a backup", () => void backup(), "btn"),
     ),
-    h("p", { class: "soft" }, `Dictionary: ${dictSize().toLocaleString()} words (CMU Pronouncing Dictionary).`),
+    persisted,
+    h("p", { class: "soft" }, `Word list: CMU Pronouncing Dictionary, ${dictSize().toLocaleString()} words.`),
+    button("About this app", noteScreen, "btn quiet"),
   )
+}
+
+const asDataUrl = (b: Blob) => new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b) })
+
+/** Downloads everything (words, photos, history) as one file the family keeps. */
+async function backup() {
+  const items = await listPhrases().catch(() => [] as SavedPhrase[])
+  const sessions = await listSessions().catch(() => [])
+  const out = { app: "sayso", saved: new Date().toISOString(), settings: loadSettings(), sessions, items: await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined }))) }
+  const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: `sayso-backup-${new Date().toISOString().slice(0, 10)}.json` })
+  document.body.append(a)
+  a.click()
+  a.remove()
 }
 
 // ---------- boot ----------
@@ -172,9 +221,13 @@ async function boot() {
     show("home", null, h("p", { class: "warn" }, String(e)))
     return
   }
+  try { void navigator.storage?.persist?.() } catch { /* not supported */ }
   let acked = false
   try { acked = localStorage.getItem(ACK_KEY) === "1" } catch { /* ignore */ }
   if (acked) void homeScreen()
   else noteScreen()
 }
 void boot()
+
+// For quick checks in the browser console / headless tests.
+;(window as unknown as Record<string, unknown>).__sayso = { analysePhrase, prepare, beatsOf, firstLetter, liveCount }

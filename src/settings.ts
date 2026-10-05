@@ -23,10 +23,29 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = "singback.settings"
 
+// Allowed ranges. Anything outside is pulled back in, also for values saved earlier.
+export const LIMITS = {
+  tempoBpm: [30, 100],
+  highHz: [220, 440],
+  intervalSemitones: [1, 7],
+  fadeRepeats: [1, 6],
+  hitWindowMs: [100, 400],
+} as const
+
+export function clampSettings(s: Settings): Settings {
+  const out = { ...s }
+  for (const k of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
+    const [lo, hi] = LIMITS[k]
+    const v = Number(out[k])
+    out[k] = Number.isFinite(v) ? Math.round(Math.min(hi, Math.max(lo, v))) : DEFAULT_SETTINGS[k]
+  }
+  return out
+}
+
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    if (raw) return clampSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) })
   } catch {
     /* storage blocked: use defaults */
   }
@@ -35,7 +54,7 @@ export function loadSettings(): Settings {
 
 export function saveSettings(s: Settings): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(s))
+    localStorage.setItem(KEY, JSON.stringify(clampSettings(s)))
   } catch {
     /* ignore */
   }
