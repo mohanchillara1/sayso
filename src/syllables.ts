@@ -21,20 +21,87 @@ export type Word = {
   source: "dict" | "guess"
   /** True when the caregiver should look at this word. */
   check: boolean
+  /** A small grammar word (the, my, to...): sung low so the content words stand out. */
+  fn?: boolean
 }
+
+// Words that carry little stress in a spoken phrase. Spoken-phrase melody puts the
+// high notes on the content words, so these stay low. Conservative list on purpose:
+// "no", "yes", "not", "up", "out", "this", "here" can be the point of a phrase.
+const FUNCTION_WORDS = new Set(
+  ("a an the i me my mine you your yours he him his she her hers it its we us our they them their " +
+   "to of in on at for from with by and or but so if as is am are was were be been do does did " +
+   "can could will would shall should may might have has had").split(" "),
+)
 
 const VOWEL = /[aeiouy]/i
 
 export function analysePhrase(phrase: string): Word[] {
-  return phrase
+  const words = phrase
     .split(/\s+/)
     .map((w) => w.trim())
     .filter(Boolean)
     .map(analyseWord)
+  // Phrase-level melody: grammar words go low. (If the whole phrase is grammar
+  // words, leave it alone, otherwise it would be one flat tone.)
+  const hasContent = words.some((w) => !FUNCTION_WORDS.has(w.text.toLowerCase()))
+  if (hasContent) {
+    for (const w of words) {
+      if (FUNCTION_WORDS.has(w.text.toLowerCase())) { w.fn = true; w.stressed = w.stressed.map(() => false) }
+    }
+  }
+  return words
 }
 
+const ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(" ")
+const TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split(" ")
+function numberWords(n: number): string {
+  if (n < 20) return ONES[n]
+  return TENS[Math.floor(n / 10)] + (n % 10 ? " " + ONES[n % 10] : "")
+}
+
+/** Longest phrase the melody screens can show and play comfortably. */
+export const MAX_BEATS = 12
+
+/**
+ * Cleans what the caregiver typed. Letters (accents too), apostrophes and spaces
+ * stay; hyphens become spaces; numbers 0-99 become words; ordinary punctuation is
+ * dropped. Anything else (emoji, symbols, big numbers) is refused with a reason.
+ */
+export function prepare(raw: string): { text: string; problem?: string } {
+  let s = raw.normalize("NFC").replace(/[-_\u2010-\u2015]/g, " ").replace(/[\u2018\u2019]/g, "'")
+  let bad = ""
+  s = s.replace(/\d+/g, (d) => {
+    const n = Number(d)
+    if (d.length > 2 || n > 99) { bad = "Spell out numbers over 99." ; return " " }
+    return " " + numberWords(n) + " "
+  })
+  if (bad) return { text: s, problem: bad }
+  s = s.replace(/[.,!?;:"“”()]/g, " ")
+  if (/[^\p{L}'\s]/u.test(s)) return { text: s, problem: "Use letters and numbers only." }
+  s = s.replace(/\s+/g, " ").trim()
+  if (!/\p{L}/u.test(s)) return { text: s, problem: "Type a word or phrase." }
+  return { text: s }
+}
+
+/** Letters without accents ("café" -> "cafe") for the dictionary and the splitter. */
+const stripMarks = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "")
+
 export function analyseWord(raw: string): Word {
-  const text = raw.replace(/[^A-Za-z'’-]/g, "").replace(/’/g, "'")
+  const text = raw.normalize("NFC").replace(/[^\p{L}'’-]/gu, "").replace(/’/g, "'")
+  const base = stripMarks(text)
+  const w = analyseBase(base)
+  w.text = text
+  if (base !== text && [...base].length === [...text].length) {
+    // Put the accents back, keeping the same piece lengths.
+    const chars = [...text]
+    let at = 0
+    w.syllables = w.syllables.map((p) => { const n = [...p].length; const out = chars.slice(at, at + n).join(""); at += n; return out })
+  }
+  return w
+}
+
+function analyseBase(text: string): Word {
   const key = text.toLowerCase()
   const stress = lookupStress(key)
   let pieces = hyphenateSync(text, { hyphenChar: "|", minWordLength: 2 }).split("|").filter(Boolean)
