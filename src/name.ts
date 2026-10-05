@@ -54,6 +54,7 @@ function runNaming(queue: SavedPhrase[]) {
   const q = [...queue]
   const retried = new Set<number>()
   const stats = { total: q.length, clear: 0, close: 0, notyet: 0 }
+  const again = new Set<number>() // words still not clear at the end
   let n = 0
   const next = () => {
     if (!q.length) return done()
@@ -120,6 +121,7 @@ function runNaming(queue: SavedPhrase[]) {
         await saveSession({ phraseId: item.id, phraseText: item.text, at: Date.now(), mode: "name", cueLevel: r === "notyet" ? 3 : level, result: r, said: r === "clear" })
       }
       stats[r]++
+      if (item.id != null) { if (r === "clear") again.delete(item.id); else again.add(item.id) }
       if (r !== "clear" && item.id != null && !retried.has(item.id)) { retried.add(item.id); q.push({ ...upd }); stats.total++ } // once more today
       next()
     }
@@ -139,8 +141,8 @@ function runNaming(queue: SavedPhrase[]) {
       stats.clear
         ? h("p", { class: "say" }, `${stats.clear} clear.`)
         : h("p", { class: "say" }, "Practising is the point."),
-      stats.close + stats.notyet
-        ? h("p", {}, `${stats.close + stats.notyet} will come back for another try.`)
+      again.size
+        ? h("p", {}, `${again.size} ${again.size === 1 ? "word" : "words"} will come back for another try.`)
         : h("p", {}, "Nothing left to repeat."),
     ),
     h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn"), button("More", () => void namePick(), "btn go")),
