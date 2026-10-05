@@ -8,7 +8,7 @@ line each time AI helps, and each time a student rewrites AI-written code.
 |---|---|---|---|
 | 2026-09-29 → 09-30 | Claude (Anthropic) | Landscape research, kill-search and the build plan (vault: `PLAN 2026-09-29.md`) | — |
 | 2026-10-02 | Claude (Anthropic), Claude Code | **This entire first prototype**: all files in `src/`, `scripts/build-dict.mjs`, `index.html`, `vite.config.ts`, `package.json`, `README.md`, this file, `THIRD-PARTY.md`. Built as a scaffold to show the idea working end to end. | Nothing yet |
-| 2026-10-04 | Claude (Anthropic), Claude Code | Merged the app: Name it mode (photo, hints, review boxes), the shared word list, the new look (`style.css`, `ui.ts`), split `main.ts` into `main.ts` / `sing.ts` / `name.ts`, extended `db.ts`, wrote the test driver, README and these notes. Design references and choices are in the vault (`BUILD — merged app 2026-10-04.md`). Hosted publicly on GitHub Pages. | Nothing yet |
+| 2026-10-04 | Claude (Anthropic), Claude Code | Merged the app: Name it mode (photo, hints, review boxes), the shared word list, the new look (`style.css`, `ui.ts`), split `main.ts` into `main.ts` / `sing.ts` / `name.ts`, extended `db.ts`, README and these notes. Design references and choices are in the vault (`BUILD — merged app 2026-10-04.md`). Hosted publicly on GitHub Pages. | Nothing yet |
 
 ## Plain statement
 As of 2026-10-04 **every line of code here was written by an AI model**, not by the
