@@ -6,7 +6,7 @@ For people with aphasia and the family who practise with them. One word list, tw
 
 - **Name it**: add a photo of a thing or person plus the word. The person looks at the photo
   and tries to say it. Hints come one tap at a time: first letter, a sentence the caregiver
-  wrote, then the whole word written and spoken (with the device's own voice). **The helper
+  wrote, then the whole word written and spoken (with the browser's built-in voice; whether a given browser sends that text to an online voice is unchecked). **The helper
   decides** whether it was said, with three buttons: Clear, Close, Not yet. Only Clear moves a
   word to a longer wait (5 review boxes); Close and Not yet bring it back the same day.
   The app does not listen. There is no speech recognition and no audio recording.
