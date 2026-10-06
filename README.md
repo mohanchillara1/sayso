@@ -1,6 +1,6 @@
 # Sayso (working name)
 
-A practice tool, used alongside a speech-language pathologist. Not a treatment.
+Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.
 
 For people with aphasia and the family who practise with them. One word list, two modes:
 
@@ -14,7 +14,7 @@ For people with aphasia and the family who practise with them. One word list, tw
   are sung low and the content words high; each later high note steps down a semitone, so one
   phrase has one peak. A two-note tune plays with a moving highlight. Five steps: listen, tap
   along, sing together, fade, say it alone. The person sees no score; tap timing (hit rate
-  with extra taps counted against it) is only saved for the helper or SLP, under Progress.
+  with extra taps counted against it) is only saved for the helper or SLP, under Progress. Sing it records only which steps were played and that timing; it does not record whether the words were said.
   The melody rule is our own simplification of spoken-phrase prosody. **Nobody has listened to
   it yet and no SLP has checked it.**
 
@@ -26,7 +26,7 @@ pathologist sets them (Settings).
 No offline mode yet (no service worker: it needs the network the first time it loads and may
 not reopen without it). No accounts, no server, nothing sent anywhere by the app; photos and history
 live in this browser's storage on this device, which the browser may clear, so Settings has
-"Save a backup". Not reviewed by any speech-language pathologist. Not tested on real phones.
+"Save a backup", which downloads one file (words, photos, history) as a copy to keep; the app cannot load that file back in yet. Not reviewed by any speech-language pathologist. Not tested on real phones.
 
 ## Run it
 Needs Node 18+.
