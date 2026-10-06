@@ -136,8 +136,9 @@ body[data-mode="name"] .top, body[data-mode="name"] .note { color: #fff; }
 @media (min-width: 700px) { :root { font-size: 21px; } .mode { min-height: 30dvh; } }
 .dock.flat { position: static; padding: 0; }
 body[data-mode="name"] .screen > h1, body[data-mode="name"] .screen > h2 { color: #fff; }
-.three { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 10px; }
+.three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .three .btn { padding: 8px 4px; min-height: 76px; }
 .ask { margin: 4px 0 0; text-align: center; }
 .t2 { font-size: clamp(1.9rem, 7vw, 2.6rem); }
 .strip { max-height: 30dvh; overflow-y: auto; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
