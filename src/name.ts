@@ -141,6 +141,7 @@ function runNaming(queue: SavedPhrase[]) {
     }
 
     show("name", () => void homeScreen(),
+      h("h1", { class: "sr" }, "What is this?"),
       h("p", { class: "count" }, `${num} of ${stats.total}`),
       h("img", { class: "big-photo", src: url, alt: "" }), // no alt text on purpose: it would give the answer away
       hint,
