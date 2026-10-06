@@ -109,7 +109,7 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
     const rec = build()
     if (!rec) return
     const changed = !existing || existing.text !== rec.text
-    rec.id = await savePhrase(rec)
+    try { rec.id = await savePhrase(rec) } catch { return complain("Could not save. Try again.") }
     if (changed && rec.words.some((w) => w.check)) editorScreen(rec, back) // check guessed splits first
     else back()
   }
@@ -118,7 +118,7 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
   const melody = async () => {
     const rec = build()
     if (!rec) return
-    rec.id = await savePhrase(rec)
+    try { rec.id = await savePhrase(rec) } catch { return complain("Could not save. Try again.") }
     editorScreen(rec, () => itemScreen(rec, from))
   }
 
@@ -179,7 +179,9 @@ function settingsScreen() {
     return h("label", { class: "field" }, label, sel)
   }
   const persisted = h("p", { class: "soft" }, "")
-  void navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? "Storage: the browser will keep your photos and history." : "Storage: the browser may clear photos and history if the device runs low on space. Save a backup now and then." })
+  const backupMsg = h("p", { class: "soft" }, "")
+  backupMsg.setAttribute("aria-live", "polite")
+  void navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? "Storage: the browser will keep your photos and history." : "Storage: the browser may clear photos and history if the device runs low on space. Save a backup file now and then (it is a copy to keep; the app cannot load it back yet)." })
   show("home", () => void homeScreen(),
     h("h2", {}, "Settings"),
     h("p", { class: "warn" }, "These are starting values we picked. A speech-language pathologist should set them for each person."),
@@ -191,25 +193,32 @@ function settingsScreen() {
     ),
     h("div", { class: "dock two" },
       button("Reset", () => { saveSettings({ ...DEFAULT_SETTINGS }); settingsScreen() }, "btn quiet"),
-      button("Save a backup", () => void backup(), "btn"),
+      button("Save a backup", () => void backup(backupMsg), "btn"),
     ),
+    backupMsg,
     persisted,
     h("p", { class: "soft" }, `Word list: CMU Pronouncing Dictionary, ${dictSize().toLocaleString()} words.`),
     button("About this app", noteScreen, "btn quiet"),
   )
 }
 
-const asDataUrl = (b: Blob) => new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b) })
+const asDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(b) })
 
 /** Downloads everything (words, photos, history) as one file the family keeps. */
-async function backup() {
-  const items = await listPhrases().catch(() => [] as SavedPhrase[])
-  const sessions = await listSessions().catch(() => [])
-  const out = { app: "sayso", saved: new Date().toISOString(), settings: loadSettings(), sessions, items: await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined }))) }
-  const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: `sayso-backup-${new Date().toISOString().slice(0, 10)}.json` })
-  document.body.append(a)
-  a.click()
-  a.remove()
+async function backup(msg: HTMLElement) {
+  try {
+    // No .catch(() => []) here: a failed read must not produce a backup that looks fine but is empty.
+    const items = await listPhrases()
+    const sessions = await listSessions()
+    const out = { app: "sayso", saved: new Date().toISOString(), settings: loadSettings(), sessions, items: await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined }))) }
+    const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: `sayso-backup-${new Date().toISOString().slice(0, 10)}.json` })
+    document.body.append(a)
+    a.click()
+    a.remove()
+    msg.textContent = `Saved a file with ${items.length} words and ${sessions.length} sessions. The app cannot load it back yet; it is a copy to keep.`
+  } catch {
+    msg.textContent = "Could not make a backup. Nothing was saved."
+  }
 }
 
 // ---------- boot ----------

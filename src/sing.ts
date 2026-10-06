@@ -6,6 +6,7 @@ import { audio, scheduleMelody, followBeats, wait, currentEpoch, cancelled, type
 import { scoreTaps, type TapResult } from "./scoring"
 import { loadSettings } from "./settings"
 import { savePhrase, listPhrases, saveSession, type SavedPhrase } from "./db"
+import { MAX_BEATS } from "./syllables"
 import { homeScreen, itemScreen } from "./main"
 
 // ---------- pick ----------
@@ -33,6 +34,8 @@ export function editorScreen(item: SavedPhrase, back: () => void) {
   const ws: Word[] = item.words.map((w) => ({ ...w, syllables: [...w.syllables], stressed: [...w.stressed] }))
   const area = h("div", { class: "words" })
   const strip = h("div", { class: "strip" })
+  const note = h("p", { class: "warn", hidden: true })
+  const say = (msg: string) => { note.textContent = msg; note.hidden = false }
 
   const render = () => {
     area.replaceChildren(...ws.map((w) => {
@@ -44,7 +47,13 @@ export function editorScreen(item: SavedPhrase, back: () => void) {
       ;[...letters].forEach((ch, i) => {
         if (i > 0) letterRow.append(h("button", {
           class: `gap ${breaks.has(i) ? "on" : ""}`, type: "button", title: "Split or join here",
-          onclick: guard(() => { toggleBreak(w, i); render() }),
+          onclick: guard(() => {
+            // Splitting adds a beat. Keep the whole phrase within the cap.
+            if (!breaks.has(i) && beatsOf(ws).length >= MAX_BEATS) return say(`That is the most syllables one tune can hold (${MAX_BEATS}).`)
+            note.hidden = true
+            toggleBreak(w, i)
+            render()
+          }),
         }, breaks.has(i) ? "|" : "·"))
         letterRow.append(h("span", {}, ch))
       })
@@ -64,12 +73,16 @@ export function editorScreen(item: SavedPhrase, back: () => void) {
   show("sing", back,
     h("h2", {}, item.text),
     h("p", {}, "Raised blocks are sung high. Tap a block to move it up or down. Tap a dot between letters to split the word there, or the bar to join it."),
+    note,
     area,
     h("h3", {}, "The tune"),
     h("div", { class: "panel" }, strip),
     h("div", { class: "dock two" },
       button("▶ Play", () => void playWithHighlight(ws, strip, 1), "btn"),
-      button("Save", async () => { await savePhrase({ ...item, words: ws }); back() }, "btn go"),
+      button("Save", async () => {
+        if (beatsOf(ws).length > MAX_BEATS) return say(`That is ${beatsOf(ws).length} syllables. Keep it to ${MAX_BEATS} or fewer.`)
+        try { await savePhrase({ ...item, words: ws }); back() } catch { say("Could not save. Try again.") }
+      }, "btn go"),
     ),
   )
 }
@@ -170,7 +183,7 @@ export function sessionScreen(phrase: SavedPhrase) {
       }
       const onTap = (e: PointerEvent) => { e.preventDefault(); addTap() }
       // Keyboard or switch: Space or Enter taps too.
-      const onKey = (e: KeyboardEvent) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (!e.repeat) addTap() } }
+      const onKey = (e: KeyboardEvent) => { if (e.target !== document.body && e.target !== pad) return; if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (!e.repeat) addTap() } }
       pad.addEventListener("pointerdown", onTap)
       document.addEventListener("keydown", onKey)
       const s = scheduleMelody(stressed, settings, 1, 1.0)
@@ -208,7 +221,13 @@ export function sessionScreen(phrase: SavedPhrase) {
     if (finished) return
     finished = true
     const result: TapResult | undefined = tap ?? undefined
-    if (phrase.id != null) await saveSession({ phraseId: phrase.id, phraseText: phrase.text, at: Date.now(), mode: "sing", tap: result, stepsCompleted: played.size })
+    try {
+      if (phrase.id != null) await saveSession({ phraseId: phrase.id, phraseText: phrase.text, at: Date.now(), mode: "sing", tap: result, stepsCompleted: played.size })
+    } catch {
+      finished = false // let them press Finish again
+      status.textContent = "Could not save. Press Finish to try again."
+      return
+    }
     show("sing", null,
       h("h1", {}, "Saved."),
       h("div", { class: "panel" },
