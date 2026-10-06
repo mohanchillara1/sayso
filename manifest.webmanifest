@@ -1,7 +1,7 @@
 {
   "name": "Sayso",
   "short_name": "Sayso",
-  "description": "A practice tool, used alongside a speech-language pathologist. Not a treatment.",
+  "description": "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f5eedf",
