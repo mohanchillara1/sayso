@@ -53,7 +53,7 @@ type Result = "clear" | "close" | "notyet"
 function runNaming(queue: SavedPhrase[]) {
   const q = [...queue]
   const retried = new Set<number>()
-  const stats = { total: q.length, clear: 0, close: 0, notyet: 0 }
+  const stats = { total: q.length, clear: 0, shown: 0 }
   const again = new Set<number>() // words still not clear at the end
   let n = 0
   const next = () => {
@@ -66,6 +66,7 @@ function runNaming(queue: SavedPhrase[]) {
     let answered = false // a second press on the same card does nothing
     const url = URL.createObjectURL(item.photo!)
     const hint = h("div", { class: "hint" })
+    hint.setAttribute("aria-live", "polite") // a screen reader hears each new hint
     const dock = h("div", { class: "dock" })
 
     const render = () => {
@@ -81,7 +82,7 @@ function runNaming(queue: SavedPhrase[]) {
         h("div", { class: "three" },
           button("Not yet", () => answer("notyet"), "btn"),
           button("Close", () => answer("close"), "btn"),
-          button("Clear", () => answer("clear"), "btn go"),
+          button("Clear", () => answer("clear"), "btn"),
         ),
       )
     }
@@ -110,19 +111,32 @@ function runNaming(queue: SavedPhrase[]) {
     const record = async (r: Result) => {
       if (recorded) return
       recorded = true
-      URL.revokeObjectURL(url)
       const box = item.box ?? 1
       // Only Clear moves a word on. Said after being shown the word (level 3) does not count as a step up.
       const newBox = r === "clear" && level <= 1 ? Math.min(5, box + 1) : r === "clear" && level === 2 ? box : r === "close" ? box : 1
       const dueIn = r === "clear" && level <= 2 ? DAYS[newBox - 1] : 0
       const upd = { ...item, box: newBox, due: Date.now() + dueIn * DAY }
-      if (item.id != null) {
-        await savePhrase(upd)
-        await saveSession({ phraseId: item.id, phraseText: item.text, at: Date.now(), mode: "name", cueLevel: r === "notyet" ? 3 : level, result: r, said: r === "clear" })
+      try {
+        if (item.id != null) {
+          await savePhrase(upd)
+          await saveSession({ phraseId: item.id, phraseText: item.text, at: Date.now(), mode: "name", cueLevel: r === "notyet" ? 3 : level, result: r, said: r === "clear" })
+        }
+      } catch {
+        // Nothing was counted: let the helper press again.
+        recorded = false
+        answered = false
+        if (r !== "notyet") render()
+        dock.append(h("p", { class: "warn" }, "Could not save. Press again to try again."))
+        return
       }
-      stats[r]++
-      if (item.id != null) { if (r === "clear") again.delete(item.id); else again.add(item.id) }
-      if (r !== "clear" && item.id != null && !retried.has(item.id)) { retried.add(item.id); q.push({ ...upd }); stats.total++ } // once more today
+      URL.revokeObjectURL(url)
+      // The summary follows what was actually saved: a word whose wait is "today" comes back,
+      // whatever button was pressed.
+      if (r === "clear") { if (level === 3) stats.shown++; else stats.clear++ }
+      if (item.id != null) {
+        if (dueIn === 0) again.add(item.id); else again.delete(item.id)
+        if (dueIn === 0 && !retried.has(item.id)) { retried.add(item.id); q.push({ ...upd }); stats.total++ } // once more today
+      }
       next()
     }
 
@@ -139,11 +153,12 @@ function runNaming(queue: SavedPhrase[]) {
     h("h1", {}, "Done."),
     h("div", { class: "panel" },
       stats.clear
-        ? h("p", { class: "say" }, `${stats.clear} clear.`)
+        ? h("p", { class: "say" }, `${stats.clear} said it.`)
         : h("p", { class: "say" }, "Practising is the point."),
+      stats.shown ? h("p", {}, `${stats.shown} said it after seeing the word. That is repeating, so it comes back.`) : "",
       again.size
-        ? h("p", {}, `${again.size} ${again.size === 1 ? "word" : "words"} will come back for another try.`)
-        : h("p", {}, "Nothing left to repeat."),
+        ? h("p", {}, `${again.size} ${again.size === 1 ? "word" : "words"} will come back for another try today.`)
+        : h("p", {}, "Nothing left to repeat today."),
     ),
     h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn"), button("More", () => void namePick(), "btn go")),
   )
