@@ -53,7 +53,8 @@ type Result = "clear" | "close" | "notyet"
 function runNaming(queue: SavedPhrase[]) {
   const q = [...queue]
   const retried = new Set<number>()
-  const stats = { total: q.length, clear: 0, shown: 0 }
+  const stats = { total: q.length }
+  const got = new Map<number, "alone" | "shown">() // per word, its latest Clear
   const again = new Set<number>() // words still not clear at the end
   let n = 0
   const next = () => {
@@ -71,7 +72,6 @@ function runNaming(queue: SavedPhrase[]) {
 
     const render = () => {
       const kids: Node[] = []
-      if (level === 0) kids.push(h("p", { class: "cue" }, "What is this?"))
       if (level >= 1 && level < 3) kids.push(h("div", { class: "letter" }, firstLetter(item.text)))
       if (level === 2) kids.push(h("p", { class: "cue" }, item.cue!))
       if (level === 3) kids.push(h("div", { class: "word-out" }, item.text))
@@ -126,14 +126,16 @@ function runNaming(queue: SavedPhrase[]) {
         recorded = false
         answered = false
         if (r !== "notyet") render()
-        dock.append(h("p", { class: "warn" }, "Could not save. Press again to try again."))
+        const w = h("p", { class: "warn" }, "Could not save. Press again to try again.")
+        w.setAttribute("role", "status")
+        dock.append(w)
         return
       }
       URL.revokeObjectURL(url)
       // The summary follows what was actually saved: a word whose wait is "today" comes back,
       // whatever button was pressed.
-      if (r === "clear") { if (level === 3) stats.shown++; else stats.clear++ }
       if (item.id != null) {
+        if (r === "clear") got.set(item.id, level === 3 ? "shown" : "alone"); else got.delete(item.id)
         if (dueIn === 0) again.add(item.id); else again.delete(item.id)
         if (dueIn === 0 && !retried.has(item.id)) { retried.add(item.id); q.push({ ...upd }); stats.total++ } // once more today
       }
@@ -141,7 +143,7 @@ function runNaming(queue: SavedPhrase[]) {
     }
 
     show("name", () => void homeScreen(),
-      h("h1", { class: "sr" }, "What is this?"),
+      h("h1", { class: "cue" }, "What is this?"),
       h("p", { class: "count" }, `${num} of ${stats.total}`),
       h("img", { class: "big-photo", src: url, alt: "" }), // no alt text on purpose: it would give the answer away
       hint,
@@ -150,19 +152,23 @@ function runNaming(queue: SavedPhrase[]) {
     render()
   }
 
-  const done = () => show("name", null,
+  const done = () => {
+  const alone = [...got.values()].filter((v) => v === "alone").length
+  const shown = got.size - alone
+  show("name", null,
     h("h1", {}, "Done."),
     h("div", { class: "panel" },
-      stats.clear
-        ? h("p", { class: "say" }, `${stats.clear} said it.`)
+      alone
+        ? h("p", { class: "say" }, `Said it on their own: ${alone} ${alone === 1 ? "word" : "words"}.`)
         : h("p", { class: "say" }, "Practising is the point."),
-      stats.shown ? h("p", {}, `${stats.shown} said it after seeing the word. That is repeating, so it comes back.`) : "",
+      shown ? h("p", {}, `Said it after seeing the word: ${shown} (repeating, so ${shown === 1 ? "it comes" : "they come"} back).`) : "",
       again.size
         ? h("p", {}, `${again.size} ${again.size === 1 ? "word" : "words"} will come back for another try today.`)
         : h("p", {}, "Nothing left to repeat today."),
     ),
     h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn"), button("More", () => void namePick(), "btn go")),
   )
+  }
 
   next()
 }
