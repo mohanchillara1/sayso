@@ -101,9 +101,12 @@ export function followBeats(s: Scheduled, onBeat: (i: number) => void): () => vo
 // (stopAll bumps the epoch), so nothing that waits here outlives its screen.
 export function wait(untilAudioTime: number): Promise<void> {
   const ep = epoch
+  // If the audio clock stops (call, background tab, autoplay block), currentTime never arrives,
+  // so also give up at a wall-clock deadline and the buttons come back.
+  const deadline = performance.now() + Math.max(0, untilAudioTime - audio().currentTime) * 1000 + 500
   return new Promise((resolve) => {
     const tick = () => {
-      if (ep !== epoch || audio().currentTime >= untilAudioTime) return resolve()
+      if (ep !== epoch || audio().currentTime >= untilAudioTime || performance.now() >= deadline) return resolve()
       setTimeout(tick, Math.min(50, Math.max(5, (untilAudioTime - audio().currentTime) * 1000)))
     }
     tick()
