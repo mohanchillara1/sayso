@@ -10,7 +10,7 @@ For people with aphasia and the family who practise with them. One word list, tw
   decides** whether it was said, with three buttons: Clear, Close, Not yet. Only Clear moves a
   word to a longer wait (5 review boxes); Close and Not yet bring it back the same day.
   The app does not listen. There is no speech recognition and no audio recording.
-- **Sing it**: type a short phrase (up to 12 syllables). Small grammar words (the, my, to...)
+- **Sing it (experimental, second on purpose)**: type a short phrase (up to 12 syllables). Small grammar words (the, my, to...)
   are sung low and the content words high; each later high note steps down a semitone, so one
   phrase has one peak. A two-note tune plays with a moving highlight. Five steps: listen, tap
   along, sing together, fade, say it alone. The person sees no score; tap timing (hit rate

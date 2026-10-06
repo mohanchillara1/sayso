@@ -23,7 +23,7 @@ function noteScreen() {
     h("div", { class: "panel" },
       h("p", { class: "say" }, DISCLAIMER),
       h("p", {}, "Name it: for finding the word for a thing or a person. A photo, then hints one tap at a time. The helper says if it was said."),
-      h("p", {}, "Sing it: for getting a short phrase out, with a simple two-note tune."),
+      h("p", {}, "Sing it (experimental): a short phrase with a simple two-note tune. Nobody has listened to the tune yet and no speech-language pathologist has checked it."),
       h("p", {}, "Photos and notes stay on this device. No account."),
     ),
     h("div", { class: "dock" }, button("I understand", () => {
@@ -37,8 +37,8 @@ function noteScreen() {
 export async function homeScreen() {
   show("home", null,
     h("p", { class: "hello" }, "What are we practising today?"),
-    h("button", { class: "mode sing", type: "button", onclick: guard(() => void singPick()) }, h("b", {}, "Sing it"), h("span", {}, "Say a phrase with a melody."), h("i", {}, "→")),
     h("button", { class: "mode name", type: "button", onclick: guard(() => void namePick()) }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo."), h("i", {}, "→")),
+    h("button", { class: "mode sing", type: "button", onclick: guard(() => void singPick()) }, h("b", {}, "Sing it"), h("span", {}, "Experimental. Not yet heard or checked by a speech-language pathologist."), h("i", {}, "→")),
     h("nav", { class: "links" },
       button("Words", () => void wordsScreen(), "btn"),
       button("Progress", () => void progressScreen(), "btn"),
