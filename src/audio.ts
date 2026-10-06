@@ -97,7 +97,15 @@ export function followBeats(s: Scheduled, onBeat: (i: number) => void): () => vo
   return () => cancelAnimationFrame(raf)
 }
 
+// Resolves at the given audio time, or at once if the person leaves the screen
+// (stopAll bumps the epoch), so nothing that waits here outlives its screen.
 export function wait(untilAudioTime: number): Promise<void> {
-  const ms = Math.max(0, (untilAudioTime - audio().currentTime) * 1000)
-  return new Promise((r) => setTimeout(r, ms))
+  const ep = epoch
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (ep !== epoch || audio().currentTime >= untilAudioTime) return resolve()
+      setTimeout(tick, Math.min(50, Math.max(5, (untilAudioTime - audio().currentTime) * 1000)))
+    }
+    tick()
+  })
 }
