@@ -54,7 +54,7 @@ function runNaming(queue: SavedPhrase[]) {
   const q = [...queue]
   const retried = new Set<number>()
   const stats = { total: q.length }
-  const got = new Map<number, "alone" | "shown">() // per word, its latest Clear
+  const got = new Map<number, "alone" | "shown">() // per word, its latest Clear; "alone" = before the word was shown, hints allowed
   const again = new Set<number>() // words still not clear at the end
   let n = 0
   const next = () => {
@@ -159,7 +159,7 @@ function runNaming(queue: SavedPhrase[]) {
     h("h1", {}, "Done."),
     h("div", { class: "panel" },
       alone
-        ? h("p", { class: "say" }, `Said it on their own: ${alone} ${alone === 1 ? "word" : "words"}.`)
+        ? h("p", { class: "say" }, `Said it without seeing the word (hints allowed): ${alone} ${alone === 1 ? "word" : "words"}.`)
         : h("p", { class: "say" }, "Practising is the point."),
       shown ? h("p", {}, `Said it after seeing the word: ${shown} (repeating, so ${shown === 1 ? "it comes" : "they come"} back).`) : "",
       again.size
