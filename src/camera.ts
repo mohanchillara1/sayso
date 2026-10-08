@@ -23,14 +23,15 @@ function loadDetector(): Promise<ObjectDetector> {
       const { FilesetResolver, ObjectDetector } = await import("@mediapipe/tasks-vision")
       const files = await FilesetResolver.forVisionTasks(new URL("mediapipe", document.baseURI).href)
       const model = new URL("models/efficientdet_lite0.tflite", document.baseURI).href
-      const make = (delegate: "GPU" | "CPU") => ObjectDetector.createFromOptions(files, {
-        baseOptions: { modelAssetPath: model, delegate },
+      // CPU on purpose: in our headless Chrome test the GPU delegate (software WebGL) returned only
+      // junk guesses for a clear photo of a mug, while CPU found "cup" at 0.87. Phones' GPUs are unchecked.
+      return ObjectDetector.createFromOptions(files, {
+        baseOptions: { modelAssetPath: model, delegate: "CPU" },
         runningMode: "VIDEO",
         scoreThreshold: 0.4,
         maxResults: 5,
         categoryAllowlist: HOME_CLASSES,
       })
-      try { return await make("GPU") } catch { return await make("CPU") }
     })()
     detector.catch(() => { detector = null }) // let a later visit try again
   }
@@ -149,6 +150,7 @@ function found(video: HTMLVideoElement, g: Guess, stopCamera: () => void, ep: nu
       const photo = await new Promise<Blob>((res, rej) => cut.toBlob((b) => (b ? res(b) : rej(new Error("photo"))), "image/jpeg", 0.85))
       await savePhrase({ text: clean.text, words: analysePhrase(clean.text), createdAt: Date.now(), photo })
       kept = true
+      dock.replaceChildren(button("Look again", () => void look(), "btn go"))
       status.textContent = have
         ? `Saved another "${clean.text}" to your words. Rename or remove it in Words.`
         : `Saved "${clean.text}" to your words with this photo. A helper can rename it in Words.`

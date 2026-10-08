@@ -172,3 +172,5 @@ body[data-mode="find"] .screen > h1, body[data-mode="find"] .screen > h2, body[d
 .cam-note { color: var(--cream); font-size: 15px; }
 .cam-word { font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 13vw, 4.2rem); line-height: 1; color: var(--sun); text-align: center; }
 .cam-status { color: var(--cream); text-align: center; }
+.choice:disabled:not(.right) { opacity: .35; box-shadow: none; }
+body[data-mode="camera"] .btn.quiet { color: var(--cream); border-color: var(--cream); }
