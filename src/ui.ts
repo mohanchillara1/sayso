@@ -3,7 +3,7 @@ import { stopAll } from "./audio"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
-export type Mode = "home" | "sing" | "name"
+export type Mode = "home" | "sing" | "name" | "find" | "camera"
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
   const el = document.createElement(tag)

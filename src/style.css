@@ -142,3 +142,33 @@ body[data-mode="name"] .screen > h1, body[data-mode="name"] .screen > h2 { color
 .t2 { font-size: clamp(1.9rem, 7vw, 2.6rem); }
 .strip { max-height: 30dvh; overflow-y: auto; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* solo modes (2026-10-07) */
+:root { --cobalt: #2340b8; }
+body[data-mode="find"] { --field: var(--cobalt); background: var(--cobalt); }
+body[data-mode="camera"] { --field: var(--ink); background: var(--ink); }
+body[data-mode="find"] .top, body[data-mode="find"] .note, body[data-mode="camera"] .top, body[data-mode="camera"] .note,
+body[data-mode="find"] .screen > h1, body[data-mode="find"] .screen > h2, body[data-mode="camera"] .screen > h1, body[data-mode="camera"] .screen > h2 { color: #fff; }
+.section { font-weight: 800; margin: 8px 0 -4px; font-size: 1.05rem; letter-spacing: .02em; }
+.modes { display: grid; gap: 14px; }
+.modes .mode { min-height: 17dvh; }
+.modes .mode b { font-size: clamp(2.2rem, 10vw, 3.4rem); }
+.mode.find { background: var(--cobalt); color: #fff; }
+.mode.cam { background: var(--ink); color: var(--cream); }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.choice { aspect-ratio: 1; padding: 0; overflow: hidden; border: 4px solid var(--ink); border-radius: 22px; background: var(--paper); box-shadow: 5px 5px 0 var(--ink); cursor: pointer; font: inherit; color: var(--ink); touch-action: manipulation; }
+.choice img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.choice.text span { font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 7vw, 2.2rem); overflow-wrap: anywhere; padding: 8px; }
+.choice.right { outline: 8px solid var(--sun); outline-offset: -4px; box-shadow: 0 0 0 4px var(--ink); }
+.choice.wrong { opacity: .35; box-shadow: none; }
+.choice:disabled { cursor: default; }
+.choice:focus-visible { outline: 4px solid var(--sun); outline-offset: 2px; }
+.find-status, body[data-mode="find"] .count, body[data-mode="camera"] .count { color: #fff; }
+.find-status { font-size: 1.3rem; text-align: center; }
+.cam-wrap { position: relative; width: 100%; border: 3px solid var(--cream); border-radius: 22px; overflow: hidden; background: #000; }
+.cam-wrap video, .cam-wrap canvas.snap { display: block; width: 100%; height: auto; }
+.cam-wrap .box { position: absolute; border: 5px solid var(--sun); border-radius: 12px; box-shadow: 0 0 0 3px var(--ink); pointer-events: none; }
+.cam-wrap .tag { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: var(--sun); color: var(--ink); font-family: var(--display); font-weight: 800; font-size: 1.6rem; padding: 6px 16px; border-radius: 14px; border: 3px solid var(--ink); white-space: nowrap; }
+.cam-note { color: var(--cream); font-size: 15px; }
+.cam-word { font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 13vw, 4.2rem); line-height: 1; color: var(--sun); text-align: center; }
+.cam-status { color: var(--cream); text-align: center; }

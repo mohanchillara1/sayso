@@ -19,10 +19,11 @@ export type SavedPhrase = {
 }
 export type SessionRecord = {
   id?: number
-  phraseId: number
+  /** Missing for Point and name: the object is not in the word list. */
+  phraseId?: number
   phraseText: string
   at: number
-  mode?: "sing" | "name"
+  mode?: "sing" | "name" | "find" | "camera"
   tap?: TapResult
   stepsCompleted?: number
   /** Name it: 0 = said it with no hint, 1 first letter, 2 sentence, 3 whole word shown. */
@@ -30,6 +31,10 @@ export type SessionRecord = {
   /** Name it: what the helper pressed. */
   result?: "clear" | "close" | "notyet"
   said?: boolean
+  /** Hear it, find it: right on the first tap, after a wrong tap, or the app showed it. */
+  find?: "first" | "later" | "shown"
+  /** Point and name: what the person said about themselves (no one else judged it). */
+  selfRating?: "got" | "notyet"
 }
 
 const DB_NAME = "singback"

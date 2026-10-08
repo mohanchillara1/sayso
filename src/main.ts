@@ -12,6 +12,8 @@ import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase }
 import { h, button, show, fmtMs, shrinkPhoto, guard, DISCLAIMER } from "./ui"
 import { singPick, editorScreen } from "./sing"
 import { namePick, firstLetter } from "./name"
+import { findPick } from "./find"
+import { cameraScreen } from "./camera"
 import { liveCount } from "./audio"
 
 const ACK_KEY = "singback.ack"
@@ -22,7 +24,8 @@ function noteScreen() {
     h("h1", {}, "Before you start"),
     h("div", { class: "panel" },
       h("p", { class: "say" }, DISCLAIMER),
-      h("p", {}, "Name it: for finding the word for a thing or a person. A photo, then hints one tap at a time. The helper says if it was said."),
+      h("p", {}, "On your own: Hear it, find it (the phone says a word, you tap the picture) and Point and name (the camera spots a thing, you try to say it, then check yourself)."),
+      h("p", {}, "With a helper: Name it, for finding the word for a thing or a person. A photo, then hints one tap at a time. The helper says if it was said."),
       h("p", {}, "Sing it (experimental): a short phrase with a simple two-note tune. Nobody has listened to the tune yet and no speech-language pathologist has checked it."),
       h("p", {}, "Photos and notes stay on this device. No account."),
     ),
@@ -37,8 +40,16 @@ function noteScreen() {
 export async function homeScreen() {
   show("home", null,
     h("p", { class: "hello" }, "What are we practising today?"),
-    h("button", { class: "mode name", type: "button", onclick: guard(() => void namePick()) }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo."), h("i", {}, "→")),
-    h("button", { class: "mode sing", type: "button", onclick: guard(() => void singPick()) }, h("b", {}, "Sing it"), h("span", {}, "Experimental. Not yet heard or checked by a speech-language pathologist."), h("i", {}, "→")),
+    h("p", { class: "section" }, "Practice on my own"),
+    h("div", { class: "modes" },
+      h("button", { class: "mode find", type: "button", onclick: guard(() => void findPick()) }, h("b", {}, "Hear it, find it"), h("span", {}, "The phone says a word. Tap the picture."), h("i", {}, "→")),
+      h("button", { class: "mode cam", type: "button", onclick: guard(() => void cameraScreen()) }, h("b", {}, "Point and name"), h("span", {}, "Point the camera at something. Say what it is."), h("i", {}, "→")),
+    ),
+    h("p", { class: "section" }, "With a helper"),
+    h("div", { class: "modes" },
+      h("button", { class: "mode name", type: "button", onclick: guard(() => void namePick()) }, h("b", {}, "Name it"), h("span", {}, "Say what is in the photo. The helper says how it went."), h("i", {}, "→")),
+      h("button", { class: "mode sing", type: "button", onclick: guard(() => void singPick()) }, h("b", {}, "Sing it"), h("span", {}, "Experimental. Not yet heard or checked by a speech-language pathologist."), h("i", {}, "→")),
+    ),
     h("nav", { class: "links" },
       button("Words", () => void wordsScreen(), "btn"),
       button("Progress", () => void progressScreen(), "btn"),
@@ -143,11 +154,14 @@ export function itemScreen(existing: SavedPhrase | undefined, from: "sing" | "na
 }
 
 // ---------- progress ----------
+const MODE_NAME = { sing: "Sing it", name: "Name it", find: "Hear it, find it", camera: "Point and name" } as const
 const CUE = ["no hint", "first letter", "sentence hint", "needed the word"]
 const RESULT = { clear: "clear", close: "close", notyet: "not yet" } as const
 async function progressScreen() {
   const rows = (await listSessions().catch(() => [])).sort((a, b) => b.at - a.at).slice(0, 40)
   const detail = (s: (typeof rows)[number]) => {
+    if (s.mode === "find") return s.find === "first" ? "found it first time" : s.find === "later" ? "found it on the second try" : "the app showed it"
+    if (s.mode === "camera") return s.selfRating === "got" ? "said they got it" : "said not yet"
     if (s.mode === "name") return `${RESULT[s.result ?? (s.said ? "clear" : "notyet")]}, ${CUE[s.cueLevel ?? 0]}`
     const t = s.tap
     return t ? `tap timing ${Math.round(t.hitRate * 100)}%: ${t.hits} of ${t.beats} beats hit, ${t.extraTaps} extra taps, ${fmtMs(t.meanAbsOffsetMs)} off` : "no taps"
@@ -156,7 +170,7 @@ async function progressScreen() {
     h("h2", {}, "Progress"),
     rows.length ? h("div", { class: "log" }, ...rows.map((s) => h("div", { class: "item" },
       h("span", { class: "t" },
-        `${s.mode === "name" ? "Name it" : "Sing it"} · ${s.phraseText}`,
+        `${MODE_NAME[s.mode ?? "sing"]} · ${s.phraseText}`,
         h("small", {}, `${new Date(s.at).toLocaleString()} · ${detail(s)}`),
       )))) : h("div", { class: "panel empty" }, h("p", { class: "say" }, "No sessions yet.")),
     h("p", { class: "soft" }, "A record of what happened, for the helper and the speech-language pathologist. The app does not judge speech."),
