@@ -1,3 +1,4 @@
 node_modules
 dist
 public/stress.txt
+public/mediapipe
