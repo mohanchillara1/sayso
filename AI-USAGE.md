@@ -13,10 +13,11 @@ line each time AI helps, and each time a student rewrites AI-written code.
 | 2026-10-05 (fix round 2) | Claude (Anthropic), Claude Code | Done screen in Name it follows what was saved (said after seeing the word counts as repeating and comes back); equal-weight Not yet / Close / Clear; heading and live region on the Name it card; honest footer and backup wording; keyboard listener limited to the pad and cleared when the screen is left (`wait()` ends on leaving); save-failure messages and retry; tune editor refuses more than 12 syllables. Files: `audio.ts ui.ts sing.ts name.ts main.ts style.css README.md`. | Nothing yet |
 | 2026-10-05 (fix round 3) | Claude (Anthropic), Claude Code | `wait()` also ends on a wall-clock deadline so a suspended audio clock cannot freeze the buttons; Name it first on Home and Sing it second, labelled experimental (first-run note and README to match); Done screen counts words, not attempts; visible "What is this?" is the h1; save-failure message has role=status. Files: `audio.ts main.ts name.ts README.md`. | Nothing yet |
 | 2026-10-06 (fix round 4) | Claude (Anthropic), Claude Code | Done screen label: "Said it without seeing the word (hints allowed)" instead of "on their own", because a Clear after a first-letter or sentence hint is not independent naming. File: `name.ts`. | Nothing yet |
+| 2026-10-07 (solo modes, branch `solo-modes`) | Claude (Anthropic), Claude Code | Two no-helper modes: Hear it, find it (`find.ts`, `findlogic.ts`, `speak.ts`) and Point and name with the camera and MediaPipe object detection (`camera.ts`, `camlogic.ts`, `scripts/copy-mediapipe.mjs`); home screen sections; Progress rows; unit tests (`findlogic.test.ts`, `camlogic.test.ts`, vitest). About 630 new lines, tests included, plus small edits in `main.ts`, `db.ts`, `ui.ts`, `style.css`. | Nothing yet |
 
 ## Plain statement
 
-As of 2026-10-06 (after fix round 4) **every line of code here was written by an AI model**, not by the
+As of 2026-10-07 (after the solo modes) **every line of code here was written by an AI model**, not by the
 students. It is a scaffold, not the entry. Before submission Mohan and Charan must
 read every file, rewrite the parts they will present and explain to judges, and log
 each change above. Judges can ask for the source code (Rules §7.3), and each student

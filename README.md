@@ -2,7 +2,20 @@
 
 Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.
 
-For people with aphasia and the family who practise with them. One word list, two modes:
+For people with aphasia and the family who practise with them. One word list, four modes.
+
+**On your own (no helper needed):**
+- **Hear it, find it**: the phone says a word from the list; the person taps the matching
+  picture out of up to four. The app checks the tap itself, because it knows which word it said.
+  Two wrong taps and it shows the right one. Words without a photo show as written cards.
+- **Point and name**: point the phone camera at a thing at home. An object finder that runs
+  inside the page (MediaPipe Object Detector, EfficientDet-Lite0, trained on the COCO dataset's 80
+  object types; we only use about 45 home ones) puts a box on it and asks "What is this?". The
+  person tries to say it, taps **Hear it** to hear and see the word, and says for themselves
+  whether they got it. **The app does not listen; the rating is the person's own.** "Save to my
+  words" adds the photo and word to the list. Camera pictures are not sent anywhere.
+
+**With a helper:**
 
 - **Name it**: add a photo of a thing or person plus the word. The person looks at the photo
   and tries to say it. Hints come one tap at a time: first letter, a sentence the caregiver
@@ -27,6 +40,12 @@ No offline mode yet (no service worker: it needs the network the first time it l
 not reopen without it). No accounts, no server, nothing sent anywhere by the app; photos and history
 live in this browser's storage on this device, which the browser may clear, so Settings has
 "Save a backup", which downloads one file (words, photos, history) as a copy to keep; the app cannot load that file back in yet. Not reviewed by any speech-language pathologist. Not tested on real phones.
+Point and name: the object finder knows only COCO's object types (no "keys", "glasses",
+"medicine", people's names), can be wrong, and has not been tested in a real room or on a real
+phone camera; its files (about 17 MB) download from this site the first time. It uses the CPU
+because the GPU path gave wrong results in our headless test. Hear it, find it uses the browser's
+built-in voice; whether a phone uses an on-device voice is unchecked, and nobody has judged the
+voice by ear.
 
 ## Run it
 Needs Node 18+.
@@ -36,6 +55,7 @@ npm install
 npm run dev      # http://localhost:5173 (builds the dictionary file first)
 npm run build    # type-check + production build into dist/
 npm run preview  # serve dist/
+npm test         # unit tests (vitest)
 ```
 
 Audio starts only after a tap (browser rule), so press a button before expecting sound.
