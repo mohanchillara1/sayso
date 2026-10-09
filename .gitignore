@@ -2,3 +2,6 @@ node_modules
 dist
 public/stress.txt
 public/mediapipe
+public/ort
+public/models/dfine_s_obj365.onnx
+public/models/efficientdet_lite0_fp16.tflite

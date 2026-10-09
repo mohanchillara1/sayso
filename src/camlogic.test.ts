@@ -1,44 +1,65 @@
 import { describe, it, expect } from "vitest"
-import { bestGuess, steadyLabel, friendlyName, boxPercent, cropRect, MIN_SCORE, HOME_CLASSES } from "./camlogic"
+import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, WORDS, COCO_HOME, type Settings } from "./camlogic"
 
-const det = (name: string, score: number, x = 10, y = 20, w = 100, h = 50) => ({ categories: [{ categoryName: name, score }], boundingBox: { originX: x, originY: y, width: w, height: h } })
+const det = (label: string, score: number) => ({ label, score, box: { x: 10, y: 20, w: 100, h: 50 } })
+const S: Settings = { nameAt: 0.5, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
 
-describe("bestGuess", () => {
-  it("picks the most confident home object", () => {
-    expect(bestGuess([det("cup", 0.6), det("chair", 0.8)])?.label).toBe("chair")
+describe("decide", () => {
+  it("names the most confident home object", () => {
+    expect(decide([det("cup", 0.6), det("chair", 0.8)], S)).toMatchObject({ kind: "name", word: "chair" })
   })
-  it("ignores things not on the home list, like people", () => {
-    expect(bestGuess([det("person", 0.99), det("cup", 0.7)])?.label).toBe("cup")
-    expect(bestGuess([det("person", 0.99)])).toBeNull()
+  it("ignores things that are not home words, like people", () => {
+    expect(decide([det("person", 0.99), det("cup", 0.7)], S)).toMatchObject({ kind: "name", word: "cup" })
+    expect(decide([det("Person", 0.99)], S)).toEqual({ kind: "none" })
+    expect(decide([], S)).toEqual({ kind: "none" })
   })
-  it("ignores weak guesses", () => {
-    expect(bestGuess([det("cup", MIN_SCORE - 0.01)])).toBeNull()
-    expect(bestGuess([])).toBeNull()
+  it("never names a blocked word (carbon fibre came back as keyboard 0.72)", () => {
+    expect(decide([det("keyboard", 0.72)], S)).toEqual({ kind: "none" })
+    expect(decide([det("Keyboard", 0.9), det("cup", 0.6)], S)).toMatchObject({ kind: "name", word: "cup" })
   })
-  it("ignores a result with no box", () => {
-    expect(bestGuess([{ categories: [{ categoryName: "cup", score: 0.9 }] }])).toBeNull()
+  it("asks between the words it was weighing when not sure", () => {
+    const d = decide([det("Bottle", 0.42), det("Cup", 0.3), det("Vase", 0.25), det("bottle", 0.35), det("Bowl", 0.1)], S)
+    expect(d).toMatchObject({ kind: "ask", words: ["bottle", "cup", "vase"] })
+  })
+  it("keeps looking when even the best guess is weak", () => {
+    expect(decide([det("cup", 0.29)], S)).toEqual({ kind: "none" })
+  })
+  it("never asks when askAt equals nameAt", () => {
+    expect(decide([det("cup", 0.49)], { ...S, askAt: 0.5 })).toEqual({ kind: "none" })
   })
 })
 
-describe("steadyLabel", () => {
-  it("needs the same label several frames in a row", () => {
-    expect(steadyLabel(["cup", "cup", "cup"], 4)).toBeNull()
-    expect(steadyLabel(["cup", "cup", "cup", "cup"], 4)).toBe("cup")
-    expect(steadyLabel(["cup", "cup", "chair", "cup"], 4)).toBeNull()
-    expect(steadyLabel(["chair", "cup", "cup", "cup", "cup"], 4)).toBe("cup")
-    expect(steadyLabel([null, null, null, null], 4)).toBeNull()
+describe("words", () => {
+  it("says everyday words for both finders' class names", () => {
+    expect(wordFor("cell phone")).toBe("phone")
+    expect(wordFor("Cell Phone")).toBe("phone")
+    expect(wordFor("dining table")).toBe("table")
+    expect(wordFor("Desk")).toBe("table")
+    expect(wordFor("Sneakers")).toBe("shoe")
+    expect(wordFor("Key")).toBe("key")
+    expect(wordFor("Power outlet")).toBeNull()
+  })
+  it("has no people or vehicles, and every COCO home class has a word", () => {
+    for (const bad of ["person", "car", "truck", "airplane"]) expect(WORDS[bad]).toBeUndefined()
+    for (const c of COCO_HOME) expect(WORDS[c]).toBeTruthy()
   })
 })
 
-describe("names and boxes", () => {
-  it("says everyday words", () => {
-    expect(friendlyName("cell phone")).toBe("phone")
-    expect(friendlyName("dining table")).toBe("table")
-    expect(friendlyName("cup")).toBe("cup")
+describe("steady", () => {
+  it("needs the same decision several looks in a row", () => {
+    expect(steadyLabel(["name:cup"], 2)).toBeNull()
+    expect(steadyLabel(["name:cup", "name:cup"], 2)).toBe("name:cup")
+    expect(steadyLabel(["name:cup", "ask:cup"], 2)).toBeNull()
+    expect(steadyLabel([null, null], 2)).toBeNull()
   })
-  it("home list has no people or vehicles", () => {
-    for (const bad of ["person", "car", "truck", "airplane"]) expect(HOME_CLASSES).not.toContain(bad)
+  it("keys name and ask decisions apart", () => {
+    expect(decisionKey({ kind: "none" })).toBeNull()
+    expect(decisionKey({ kind: "name", word: "cup", box: det("cup", 1).box })).toBe("name:cup")
+    expect(decisionKey({ kind: "ask", words: ["cup", "bowl"], box: det("cup", 1).box })).toBe("ask:cup")
   })
+})
+
+describe("boxes", () => {
   it("box as percentages, clipped to the frame", () => {
     expect(boxPercent({ x: 64, y: 48, w: 320, h: 240 }, 640, 480)).toEqual({ left: 10, top: 10, width: 50, height: 50 })
     const p = boxPercent({ x: -20, y: 400, w: 100, h: 200 }, 640, 480)

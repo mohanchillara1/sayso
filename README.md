@@ -9,10 +9,13 @@ For people with aphasia and the family who practise with them. One word list, fo
   picture out of up to four. The app checks the tap itself, because it knows which word it said.
   Two wrong taps and it shows the right one. Words without a photo show as written cards.
 - **Point and name**: point the phone camera at a thing at home. An object finder that runs
-  inside the page (MediaPipe Object Detector, EfficientDet-Lite0, trained on the COCO dataset's 80
-  object types; we only use about 45 home ones) puts a box on it and asks "What is this?". The
+  inside the page puts a box on it and asks "What is this?". On phones with WebGPU it is D-FINE
+  small (trained on Objects365, 366 object types, so it also knows keys, glasses, shoes, lamps,
+  pillows); otherwise MediaPipe's EfficientDet-Lite0 (COCO, 80 types). We only use home words, and
+  each finder must pass a self-test on a photo of a cup before it is used (`src/finder.ts`). The
   person tries to say it, taps **Hear it** to hear and see the word, and says for themselves
-  whether they got it. **The app does not listen; the rating is the person's own.** "Save to my
+  whether they got it. When the finder is not sure, Hear it first asks "Which one is it?" with up
+  to three words. **The app does not listen; the rating is the person's own.** "Save to my
   words" adds the photo and word to the list. Camera pictures are not sent anywhere.
 
 **With a helper:**
@@ -40,10 +43,12 @@ No offline mode yet (no service worker: it needs the network the first time it l
 not reopen without it). No accounts, no server, nothing sent anywhere by the app; photos and history
 live in this browser's storage on this device, which the browser may clear, so Settings has
 "Save a backup", which downloads one file (words, photos, history) as a copy to keep; the app cannot load that file back in yet. Not reviewed by any speech-language pathologist. Not tested on real phones.
-Point and name: the object finder knows only COCO's object types (no "keys", "glasses",
-"medicine", people's names), can be wrong, and has not been tested in a real room or on a real
-phone camera; its files (about 17 MB) download from this site the first time. It uses the CPU
-because the GPU path gave wrong results in our headless test. Hear it, find it uses the browser's
+Point and name: the finders know a fixed list of object types (no "medicine", no people's names)
+and can be wrong. On 46 photos it had never been tuned on, the main finder got 21 of 29 objects
+(8 of them by asking) and named none of 17 plain textures such as carbon fibre; it still misses
+some things held very close or in odd light. It has been tested with photos and a simulated
+camera, not in a real room, and this version not yet on a real phone. Its files (up to about 70 MB)
+download from this site the first time, which can take a minute. Hear it, find it uses the browser's
 built-in voice; whether a phone uses an on-device voice is unchecked, and nobody has judged the
 voice by ear.
 

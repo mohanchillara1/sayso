@@ -1,46 +1,24 @@
 // Point and name: practice with no helper, using the phone camera.
 // The camera picture goes to an object finder that runs inside this page
-// (MediaPipe Object Detector, EfficientDet-Lite0, loaded from this website, not a
-// cloud service). When it is sure about a home object for about half a second,
-// the picture freezes with a box on the object and "What is this?". The person
-// tries to say it, taps "Hear it" to check, and says for themselves whether they
-// got it. The app does not listen.
-import type { ObjectDetector } from "@mediapipe/tasks-vision"
+// (src/finder.ts, loaded from this website, not a cloud service). When the finder
+// agrees with itself for a few looks in a row, the picture freezes with a box on
+// the object and "What is this?". The person tries to say it, taps "Hear it" to
+// check, and says for themselves whether they got it. If the finder was not sure,
+// "Hear it" first asks which of two or three words it is. The app does not listen.
 import { h, button, show } from "./ui"
 import { homeScreen } from "./main"
 import { currentEpoch, cancelled } from "./audio"
 import { saveSession, savePhrase, listPhrases } from "./db"
 import { analysePhrase, prepare } from "./syllables"
 import { speak } from "./speak"
-import { bestGuess, steadyLabel, friendlyName, boxPercent, cropRect, HOME_CLASSES, type Guess } from "./camlogic"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, type Decision } from "./camlogic"
+import { loadFinder, type Finder } from "./finder"
 
-let detector: Promise<ObjectDetector> | null = null
-
-/** Loads the finder once. Its files (about 17 MB) come from this site and the browser caches them. */
-function loadDetector(): Promise<ObjectDetector> {
-  if (!detector) {
-    detector = (async () => {
-      const { FilesetResolver, ObjectDetector } = await import("@mediapipe/tasks-vision")
-      const files = await FilesetResolver.forVisionTasks(new URL("mediapipe", document.baseURI).href)
-      const model = new URL("models/efficientdet_lite0.tflite", document.baseURI).href
-      // CPU on purpose: in our headless Chrome test the GPU delegate (software WebGL) returned only
-      // junk guesses for a clear photo of a mug, while CPU found "cup" at 0.87. Phones' GPUs are unchecked.
-      return ObjectDetector.createFromOptions(files, {
-        baseOptions: { modelAssetPath: model, delegate: "CPU" },
-        runningMode: "VIDEO",
-        scoreThreshold: 0.4,
-        maxResults: 5,
-        categoryAllowlist: HOME_CLASSES,
-      })
-    })()
-    detector.catch(() => { detector = null }) // let a later visit try again
-  }
-  return detector
-}
-
-const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (about 17 MB) from this website."
+const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
 export function cameraScreen() {
+  // Start getting the finder ready while the person reads this screen; it can take a while the first time.
+  loadFinder().catch(() => { /* look() tries again and explains */ })
   show("camera", () => void homeScreen(),
     h("h2", {}, "Point and name"),
     h("p", { class: "cam-status" }, "Point the camera at one thing: a cup, a chair, a clock. When a yellow box appears, try to say what it is."),
@@ -69,10 +47,10 @@ async function look() {
   video.srcObject = stream
   try { await video.play() } catch { /* autoplay with muted video is allowed; ignore */ }
 
-  status.textContent = "Getting the object finder ready…"
-  let det: ObjectDetector
+  status.textContent = "Getting the object finder ready… The first time can take a minute."
+  let finder: Finder
   try {
-    det = await loadDetector()
+    finder = await loadFinder()
   } catch {
     stop()
     if (!cancelled(ep2)) status.textContent = "Could not load the object finder. Check the internet connection for the first use, then try again."
@@ -80,37 +58,41 @@ async function look() {
   }
   if (cancelled(ep2)) return stop()
   status.textContent = "Looking… hold the phone still."
+  wrap.dataset.finder = finder.name // for tests and the build report
 
+  // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
   const history: (string | null)[] = []
-  let last = 0
-  let lastGuess: Guess | null = null
-  const tick = () => {
-    if (cancelled(ep2)) return stop()
-    const now = performance.now()
-    if (now - last >= 120 && video.readyState >= 2) {
-      last = now
-      try {
-        const g = bestGuess(det.detectForVideo(video, now).detections)
-        history.push(g?.label ?? null)
-        if (history.length > 20) history.shift()
-        if (g) lastGuess = g
-        const steady = steadyLabel(history)
-        if (steady && lastGuess?.label === steady) return found(video, lastGuess, stop, ep2)
-      } catch { /* one bad frame: keep looking */ }
+  const started = performance.now()
+  let hinted = false
+  while (!cancelled(ep2)) {
+    await new Promise((r) => requestAnimationFrame(r))
+    if (video.readyState < 2) continue
+    let d: Decision = { kind: "none" }
+    try {
+      d = decide(await finder.detect(video, video.videoWidth, video.videoHeight), finder.settings)
+    } catch { /* one bad frame: keep looking */ }
+    if (cancelled(ep2)) break
+    history.push(decisionKey(d))
+    if (history.length > 20) history.shift()
+    if (d.kind !== "none" && steadyLabel(history, finder.settings.steady) === decisionKey(d)) return found(video, d, stop, ep2)
+    // In our tests a bottle held so close that it filled the picture was not found.
+    if (!hinted && performance.now() - started > 6000) {
+      hinted = true
+      status.textContent = "Still looking. Try holding it a bit further away, so all of it is in the picture."
     }
-    requestAnimationFrame(tick)
   }
-  requestAnimationFrame(tick)
+  stop()
 }
 
-function found(video: HTMLVideoElement, g: Guess, stopCamera: () => void, ep: number) {
+function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, stopCamera: () => void, ep: number) {
   // Freeze the frame, then turn the camera off while the person answers.
   const vw = video.videoWidth, vh = video.videoHeight
   const snap = h("canvas", { class: "snap", width: vw, height: vh }) as HTMLCanvasElement
   snap.getContext("2d")!.drawImage(video, 0, 0, vw, vh)
   stopCamera()
-  const word = friendlyName(g.label)
-  const p = boxPercent(g.box, vw, vh)
+  // Sure: one word. Not sure: the person picks from up to three after trying to say it.
+  let word = d.kind === "name" ? d.word : ""
+  const p = boxPercent(d.box, vw, vh)
   const box = h("div", { class: "box" })
   Object.assign(box.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
   const tag = h("div", { class: "tag" }, "What is this?")
@@ -144,7 +126,7 @@ function found(video: HTMLVideoElement, g: Guess, stopCamera: () => void, ep: nu
     const clean = prepare(word)
     try {
       const have = (await listPhrases()).some((x) => x.text.toLowerCase() === clean.text.toLowerCase())
-      const c = cropRect(g.box, vw, vh)
+      const c = cropRect(d.box, vw, vh)
       const cut = h("canvas", { width: c.w, height: c.h }) as HTMLCanvasElement
       cut.getContext("2d")!.drawImage(snap, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h)
       const photo = await new Promise<Blob>((res, rej) => cut.toBlob((b) => (b ? res(b) : rej(new Error("photo"))), "image/jpeg", 0.85))
@@ -157,6 +139,16 @@ function found(video: HTMLVideoElement, g: Guess, stopCamera: () => void, ep: nu
     } catch {
       status.textContent = "Could not save to your words. Try again."
     }
+  }
+
+  const choose = () => {
+    if (d.kind !== "ask") return hear()
+    status.textContent = "The app is not sure. Which one is it?"
+    answer.replaceChildren()
+    dock.replaceChildren(
+      h("div", { class: "choices" }, ...d.words.map((w) => button(w, () => { word = w; hear() }, "btn"))),
+      button("None of these", () => void look(), "btn quiet"),
+    )
   }
 
   const hear = () => {
@@ -173,7 +165,7 @@ function found(video: HTMLVideoElement, g: Guess, stopCamera: () => void, ep: nu
     )
   }
 
-  dock.replaceChildren(button("Hear it", hear, "btn go"), button("Look again", () => void look(), "btn quiet"))
+  dock.replaceChildren(button("Hear it", choose, "btn go"), button("Look again", () => void look(), "btn quiet"))
   if (cancelled(ep)) return
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, answer, status, dock)
 }
