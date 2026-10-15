@@ -10,31 +10,109 @@ export type Det = { label: string; score: number; box: Box }
 
 /**
  * The finders' class names (lower case) mapped to the word we say at home.
- * Covers both COCO (MediaPipe) and Objects365 (D-FINE) names. Anything not
- * listed (people, cars, animals outdoors, "power outlet"...) is ignored.
+ * Covers both COCO (MediaPipe, 80 classes) and Objects365 (D-FINE, 365 classes) names.
+ * Since 2026-10-15 every Objects365 class a person could plausibly have or use at home is here.
+ * Left out on purpose (see LEFT_OUT below): vehicles, street and outdoor things, wild and farm
+ * animals, sports gear, classroom and office-building things, weapons, smoking.
+ * Anything not listed is ignored.
  */
 export const WORDS: Record<string, string> = {
-  // food and drink
+  // drink and tableware
   "cup": "cup", "bottle": "bottle", "wine glass": "glass", "bowl": "bowl", "bowl/basin": "bowl", "plate": "plate",
-  "spoon": "spoon", "fork": "fork", "knife": "knife", "tea pot": "teapot", "kettle": "kettle", "jug": "jug",
-  "banana": "banana", "apple": "apple", "orange": "orange", "orange/tangerine": "orange", "sandwich": "sandwich",
-  "carrot": "carrot", "broccoli": "broccoli", "bread": "bread", "cake": "cake", "pizza": "pizza", "donut": "donut",
+  "spoon": "spoon", "fork": "fork", "knife": "knife", "chopsticks": "chopsticks", "tea pot": "teapot", "kettle": "kettle",
+  "jug": "jug", "flask": "flask", "napkin": "napkin", "canned": "can",
+  // kitchen
+  "pot": "pot", "cutting/chopping board": "chopping board", "tong": "tongs", "blender": "blender", "toaster": "toaster",
+  "microwave": "microwave", "oven": "oven", "gas stove": "stove", "induction cooker": "stove", "rice cooker": "rice cooker",
+  "coffee machine": "coffee machine", "refrigerator": "fridge", "dishwasher": "dishwasher", "extractor": "cooker hood",
+  "sink": "sink", "faucet": "tap", "scale": "scales", "barrel/bucket": "bucket", "lighter": "lighter",
+  // fruit
+  "apple": "apple", "banana": "banana", "orange": "orange", "orange/tangerine": "orange", "lemon": "lemon",
+  "grape": "grapes", "strawberry": "strawberry", "pear": "pear", "peach": "peach", "plum": "plum", "cherry": "cherry",
+  "mango": "mango", "pineapple": "pineapple", "watermelon": "watermelon", "hamimelon": "melon", "kiwi fruit": "kiwi",
+  "avocado": "avocado", "coconut": "coconut", "papaya": "papaya", "pomegranate": "pomegranate", "grapefruit": "grapefruit",
+  // vegetables
+  "tomato": "tomato", "potato": "potato", "onion": "onion", "garlic": "garlic", "carrot": "carrot", "broccoli": "broccoli",
+  "cabbage": "cabbage", "red cabbage": "cabbage", "lettuce": "lettuce", "cucumber": "cucumber", "pepper": "pepper",
+  "eggplant": "eggplant", "corn": "corn", "mushroom": "mushroom", "pumpkin": "pumpkin", "green vegetables": "vegetables",
+  "green beans": "beans", "green onion": "spring onion", "radish": "radish", "asparagus": "asparagus",
+  // food
+  "bread": "bread", "cake": "cake", "pie": "pie", "cookies": "cookies", "donut": "donut", "dessert": "dessert",
+  "ice cream": "ice cream", "candy": "sweets", "chips": "chips", "cheese": "cheese", "egg": "egg", "sausage": "sausage",
+  "steak": "meat", "hamburger": "burger", "hot dog": "hot dog", "sandwich": "sandwich", "pizza": "pizza", "pasta": "pasta",
+  "noddles": "noodles", "rice": "rice", "french fries": "fries", "nuts": "nuts", "sushi": "sushi", "dumpling": "dumpling",
+  "baozi": "bun", "spring rolls": "spring roll", "meat ball": "meatballs", "egg tart": "tart",
   // furniture and rooms
-  "chair": "chair", "couch": "couch", "bed": "bed", "pillow": "pillow", "dining table": "table", "desk": "table",
-  "lamp": "lamp", "clock": "clock", "vase": "vase", "potted plant": "plant", "picture/frame": "picture",
-  "mirror": "mirror", "candle": "candle", "basket": "basket", "storage box": "box", "trash bin can": "bin",
-  "toilet": "toilet", "sink": "sink", "faucet": "tap", "towel": "towel", "toilet paper": "toilet paper",
-  "refrigerator": "fridge", "microwave": "microwave", "oven": "oven", "toaster": "toaster", "fan": "fan",
-  // things you hold
-  "cell phone": "phone", "telephone": "phone", "remote": "remote", "tv": "TV", "monitor/tv": "TV",
-  "laptop": "laptop", "keyboard": "keyboard", "mouse": "mouse", "book": "book", "scissors": "scissors",
-  "toothbrush": "toothbrush", "hair drier": "hair dryer", "hair dryer": "hair dryer", "comb": "comb", "soap": "soap",
-  "tissue": "tissues", "pen/pencil": "pen", "key": "key", "glasses": "glasses", "watch": "watch",
-  "wallet/purse": "wallet", "handbag": "bag", "handbag/satchel": "bag", "backpack": "backpack", "umbrella": "umbrella",
-  "hat": "hat", "sneakers": "shoe", "leather shoes": "shoe", "other shoes": "shoe", "slippers": "slippers",
-  "boots": "boots", "teddy bear": "teddy bear", "stuffed toy": "teddy bear",
-  // pets
-  "cat": "cat", "dog": "dog",
+  "chair": "chair", "couch": "couch", "bed": "bed", "pillow": "pillow", "dining table": "table", "dinning table": "table",
+  "desk": "table", "coffee table": "table", "side table": "table", "nightstand": "bedside table", "stool": "stool",
+  "bench": "bench", "lamp": "lamp", "lantern": "lantern", "clock": "clock", "vase": "vase", "potted plant": "plant",
+  "flower": "flowers", "picture/frame": "picture", "mirror": "mirror", "cosmetics mirror": "mirror", "candle": "candle",
+  "basket": "basket", "storage box": "box", "trash bin can": "bin", "hanger": "hanger",
+  "radiator": "radiator", "air conditioner": "air conditioner", "fan": "fan",
+  "fire extinguisher": "fire extinguisher", "globe": "globe", "trophy": "trophy", "medal": "medal",
+  // bathroom and cleaning
+  "toilet": "toilet", "toilet paper": "toilet paper", "towel": "towel", "soap": "soap", "toothbrush": "toothbrush",
+  "toiletry": "toiletries", "comb": "comb", "brush": "brush", "hair drier": "hair dryer", "hair dryer": "hair dryer",
+  "showerhead": "shower", "bathtub": "bath", "tissue": "tissues", "cosmetics": "makeup", "lipstick": "lipstick",
+  "cosmetics brush/eyeliner pencil": "makeup brush", "cleaning products": "cleaner", "mop": "mop", "broom": "broom",
+  "washing machine/drying machine": "washing machine",
+  // clothes and things you wear
+  "hat": "hat", "glasses": "glasses", "sneakers": "shoe", "leather shoes": "shoe", "other shoes": "shoe",
+  "high heels": "shoe", "sandals": "sandals", "slippers": "slippers", "boots": "boots", "belt": "belt", "tie": "tie",
+  "bow tie": "bow tie", "necklace": "necklace", "watch": "watch", "gloves": "gloves",
+  "mask": "mask", "helmet": "helmet",
+  // bags
+  "handbag": "bag", "handbag/satchel": "bag", "backpack": "backpack", "wallet/purse": "wallet", "luggage": "suitcase",
+  "briefcase": "briefcase", "umbrella": "umbrella",
+  // electronics
+  "cell phone": "phone", "telephone": "phone", "remote": "remote", "tv": "TV", "monitor/tv": "TV", "laptop": "laptop",
+  "keyboard": "keyboard", "mouse": "mouse", "tablet": "tablet", "computer box": "computer", "printer": "printer",
+  "router/modem": "router", "speaker": "speaker", "head phone": "headphones", "earphone": "earbuds", "camera": "camera",
+  "microphone": "microphone", "projector": "projector", "extension cord": "extension cord", "converter": "adapter",
+  "calculator": "calculator", "cd": "CD",
+  // paper, pens and tools
+  "book": "book", "pen/pencil": "pen", "marker": "marker", "notepaper": "note", "folder": "folder", "tape": "tape",
+  "stapler": "stapler", "scissors": "scissors", "eraser": "eraser", "pencil case": "pencil case",
+  "tape measure/ruler": "ruler", "paint brush": "paintbrush", "key": "key", "hammer": "hammer", "screwdriver": "screwdriver",
+  "pliers": "pliers", "electric drill": "drill", "shovel": "shovel", "ladder": "ladder",
+  // toys, games and music
+  "teddy bear": "teddy bear", "stuffed toy": "teddy bear", "balloon": "balloon", "other balls": "ball", "soccer": "ball",
+  "basketball": "ball", "volleyball": "ball", "baseball": "ball", "tennis": "ball", "game board": "board game",
+  "poker card": "cards", "guitar": "guitar", "piano": "piano", "violin": "violin", "drum": "drum", "flute": "flute",
+  "recorder": "recorder", "trumpet": "trumpet",
+  // pets and helpers
+  "cat": "cat", "dog": "dog", "goldfish": "fish", "parrot": "parrot", "rabbit": "rabbit", "wheelchair": "wheelchair",
+  "stroller": "pram",
+}
+
+/**
+ * Classes that mean two different things to a person. When the finder sees one of these,
+ * the app asks which it is instead of naming it ("Pen/Pencil": pen or pencil?).
+ */
+export const EITHER: Record<string, string[]> = {
+  "pen/pencil": ["pen", "pencil"], "wallet/purse": ["wallet", "purse"], "tape measure/ruler": ["ruler", "tape measure"],
+  "washing machine/drying machine": ["washing machine", "dryer"],
+}
+
+/**
+ * Objects365 classes left out on purpose, and why. Kept so the list can be checked and changed.
+ * (COCO's non-home classes such as person, car and traffic light are left out the same way.)
+ */
+export const LEFT_OUT: Record<string, string> = {
+  "people": "Person",
+  "vehicles": "Car, SUV, Van, Bus, Truck, Pickup Truck, Heavy Truck, Fire Truck, Ambulance, Machinery Vehicle, Sports Car, Formula 1, Motorcycle, Bicycle, Tricycle, Scooter, Hoverboard, Boat, Sailboat, Ship, Airplane, Helicopter, Train, Carriage, Rickshaw, Crane, Trolley, Hot-air balloon",
+  "street and outdoors": "Street Lights, Traffic Light, Traffic Sign, Stop Sign, Speed Limit Sign, Crosswalk Sign, Traffic cone, Parking meter, Fire Hydrant, Awning, Tent, Swing, Slide, Flag, Surveillance Camera, Lifesaver",
+  "wild and farm animals": "Horse, Cow, Sheep, Pig, Elephant, Zebra, Giraffe, Bear, Lion, Monkey, Camel, Deer, Antelope, Yak, Donkey, Wild Bird, Pigeon, Duck, Goose, Swan, Chicken, Penguin, Seal, Dolphin, Butterfly, Jellyfish, Other Fish",
+  "seafood (rare at home, look like each other)": "Shrimp, Crab, Lobster, Oyster, Scallop",
+  "sports gear": "Hockey Stick, Paddle, Baseball Glove, Baseball Bat, Skiboard, Snowboard, Skateboard, Surfboard, Skating and Skiing shoes, Golf Club, Golf Ball, Tennis Racket, American Football, Frisbee, Kite, Billiards, Cue, Table Tennis paddle, Table Tennis, Curling, Target, Hurdle, Fishing Rod, Dumbbell, Barbell, Treadmill",
+  "rare instruments": "Cymbal, Cello, Saxophone, Trombone, Tuba",
+  "classroom and office building": "Blackboard/Whiteboard, Board Eraser, Megaphone, Tripod",
+  "bathroom outside the home": "Urinal",
+  "tools for experts only": "Chainsaw",
+  "not words we want to teach": "Gun, Cigar/Cigarette",
+  "unclear or rare at home": "French, Durian, Okra, Binoculars",
+  // Measured 2026-10-15 on the 75 + 46 test photos: these named or asked things that were not there.
+  "misfired in our test (hands, walls, floors)": "Ring, Bracelet, Power outlet, Carpet, Cabinet/shelf",
 }
 
 /** COCO class names on the home list: what MediaPipe is told to look for. */
@@ -79,11 +157,15 @@ export function decide(dets: Det[], s: Settings): Decision {
     .sort((a, b) => b.score - a.score)
   const top = ok[0]
   if (!top) return { kind: "none" }
-  if (top.score >= s.nameAt) return { kind: "name", word: top.word, box: top.box }
+  const either = EITHER[top.label.toLowerCase()]
+  if (top.score >= s.nameAt) return either ? { kind: "ask", words: either, box: top.box } : { kind: "name", word: top.word, box: top.box }
   if (top.score < s.askAt) return { kind: "none" }
   // Not sure: offer the words the finder was weighing, near-misses included.
   const words: string[] = []
-  for (const d of ok) if (d.score >= s.askAt * 0.75 && !words.includes(d.word)) words.push(d.word)
+  for (const d of ok) {
+    if (d.score < s.askAt * 0.75) continue
+    for (const w of EITHER[d.label.toLowerCase()] ?? [d.word]) if (!words.includes(w)) words.push(w)
+  }
   return { kind: "ask", words: words.slice(0, 3), box: top.box }
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, WORDS, COCO_HOME, type Settings } from "./camlogic"
+import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, WORDS, LEFT_OUT, COCO_HOME, type Settings } from "./camlogic"
 
 const det = (label: string, score: number) => ({ label, score, box: { x: 10, y: 20, w: 100, h: 50 } })
 const S: Settings = { nameAt: 0.5, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
@@ -38,6 +38,7 @@ describe("words", () => {
     expect(wordFor("Sneakers")).toBe("shoe")
     expect(wordFor("Key")).toBe("key")
     expect(wordFor("Power outlet")).toBeNull()
+    expect(wordFor("Person")).toBeNull()
   })
   it("has no people or vehicles, and every COCO home class has a word", () => {
     for (const bad of ["person", "car", "truck", "airplane"]) expect(WORDS[bad]).toBeUndefined()
@@ -98,5 +99,25 @@ describe("live feedback", () => {
     expect(hintFor(at("cup", 0.2, { x: 300, y: 220, w: 20, h: 20 }), 640, 480, false, S, 0)).toBe("closer")
     expect(hintFor(at("cup", 0.2, { x: 10, y: 10, w: 120, h: 120 }), 640, 480, false, S, 0)).toBe("middle")
     expect(hintFor(at("cup", 0.2), 640, 480, false, S, 0)).toBe("still")
+  })
+})
+
+describe("every Objects365 class is decided", () => {
+  it("is either a home word or left out on purpose", async () => {
+    const { readFileSync } = await import("node:fs")
+    const labels: string[] = JSON.parse(readFileSync("public/models/dfine_s_obj365.labels.json", "utf8")).slice(1) // 0 is "None"
+    const out = new Set(Object.values(LEFT_OUT).flatMap((v) => v.split(",").map((x) => x.trim().toLowerCase())))
+    const loose = labels.filter((l) => !(l.toLowerCase() in WORDS) && !out.has(l.toLowerCase()))
+    expect(loose).toEqual([])
+    const both = labels.filter((l) => l.toLowerCase() in WORDS && out.has(l.toLowerCase()))
+    expect(both).toEqual([])
+  })
+  it("asks pen or pencil, never guesses one", () => {
+    expect(decide([det("Pen/Pencil", 0.9)], S)).toMatchObject({ kind: "ask", words: ["pen", "pencil"] })
+    expect(decide([det("Pen/Pencil", 0.35), det("Marker", 0.3)], S)).toMatchObject({ kind: "ask", words: ["pen", "pencil", "marker"] })
+  })
+  it("knows earbuds and headphones", () => {
+    expect(wordFor("earphone")).toBe("earbuds")
+    expect(wordFor("Head Phone")).toBe("headphones")
   })
 })
