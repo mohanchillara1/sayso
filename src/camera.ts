@@ -7,9 +7,9 @@
 // "Hear it" first asks which of two or three words it is. The app does not listen.
 import { h, button, show, prompt } from "./ui"
 import { homeScreen } from "./main"
-import { currentEpoch, cancelled } from "./audio"
+import { currentEpoch, cancelled } from "./epoch"
 import { saveSession, savePhrase, listPhrases } from "./db"
-import { analysePhrase, prepare } from "./syllables"
+import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
 import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, type Decision, type Box } from "./camlogic"
 import { padOut, unpadBox, meanLight } from "./frameprep"
@@ -157,7 +157,7 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
       const cut = h("canvas", { width: c.w, height: c.h }) as HTMLCanvasElement
       cut.getContext("2d")!.drawImage(snap, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h)
       const photo = await new Promise<Blob>((res, rej) => cut.toBlob((b) => (b ? res(b) : rej(new Error("photo"))), "image/jpeg", 0.85))
-      await savePhrase({ text: clean.text, words: analysePhrase(clean.text), createdAt: Date.now(), photo })
+      await savePhrase({ text: clean.text, createdAt: Date.now(), photo })
       kept = true
       dock.replaceChildren(button("Look again", () => void look(), "btn go", "📷"))
       status.textContent = have

@@ -1,23 +1,16 @@
 // On-device storage (IndexedDB). Nothing leaves the device: no account, no server.
-import type { Word } from "./syllables"
-import type { TapResult } from "./scoring"
+// Records saved by older versions may carry extra fields from the modes we removed
+// (Sing it, Name it); they are kept as they are and ignored.
 
-// One list for every mode. Every item has text. Hear it, find it shows its photo,
-// else its built-in picture. cue/box/due only matter to Name it (hidden for now).
+// One word list for both modes. Every item has text. Hear it, find it shows its photo,
+// else its built-in picture.
 export type SavedPhrase = {
   id?: number
   text: string
-  words: Word[]
   createdAt: number
   photo?: Blob
   /** Built-in picture (an emoji) for starter words that have no photo yet. */
   pic?: string
-  /** Name it only: sentence cue, e.g. "I drink coffee from my ___". */
-  cue?: string
-  /** Review box 1..5 (Name it). */
-  box?: number
-  /** When it is next due, ms since epoch. */
-  due?: number
 }
 export type SessionRecord = {
   id?: number
@@ -25,14 +18,8 @@ export type SessionRecord = {
   phraseId?: number
   phraseText: string
   at: number
-  mode?: "sing" | "name" | "find" | "camera"
-  tap?: TapResult
-  stepsCompleted?: number
-  /** Name it: 0 = said it with no hint, 1 first letter, 2 sentence, 3 whole word shown. */
-  cueLevel?: number
-  /** Name it: what the helper pressed. */
-  result?: "clear" | "close" | "notyet"
-  said?: boolean
+  /** "sing" and "name" only appear in records from older versions. */
+  mode?: "find" | "camera" | "sing" | "name"
   /** Hear it, find it: right on the first tap, after a wrong tap, or the app showed it. */
   find?: "first" | "later" | "shown"
   /** Point and name: what the person said about themselves (no one else judged it). */

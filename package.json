@@ -4,10 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dict": "node scripts/build-dict.mjs",
-    "predev": "node scripts/build-dict.mjs && node scripts/copy-mediapipe.mjs && node scripts/fetch-models.mjs",
+    "predev": "node scripts/copy-mediapipe.mjs && node scripts/fetch-models.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/build-dict.mjs && node scripts/copy-mediapipe.mjs && node scripts/fetch-models.mjs",
+    "prebuild": "node scripts/copy-mediapipe.mjs && node scripts/fetch-models.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run"
@@ -16,7 +15,6 @@
     "@fontsource/atkinson-hyperlegible": "^5.3.0",
     "@fontsource/bricolage-grotesque": "^5.3.0",
     "@mediapipe/tasks-vision": "^1.1.0",
-    "hyphen": "^1.14.1",
     "onnxruntime-web": "1.30.0"
   },
   "devDependencies": {

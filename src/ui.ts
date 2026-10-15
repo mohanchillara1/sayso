@@ -1,18 +1,11 @@
 // Small DOM helpers and the page frame every screen sits in.
-import { stopAll } from "./audio"
+import { stopAll } from "./epoch"
 import { sayPrompt } from "./speak"
 import type { SavedPhrase } from "./db"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
-export type Mode = "home" | "sing" | "name" | "find" | "camera"
-
-/**
- * Name it and Sing it need a helper or are not checked yet, so for now the app
- * shows only the two modes a person can use alone (Mohan, 2026-10-13). Their code
- * stays; set this to true to bring them back.
- */
-export const HELPER_MODES = false
+export type Mode = "home" | "find" | "camera"
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
   const el = document.createElement(tag)
@@ -77,8 +70,6 @@ export function show(mode: Mode, back: (() => void) | null, ...nodes: Node[]) {
   app.replaceChildren(top, main, h("footer", { class: "note" }, DISCLAIMER))
   window.scrollTo(0, 0)
 }
-
-export const fmtMs = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v)} ms`)
 
 /** Shrink a camera photo so it fits comfortably in IndexedDB. */
 export async function shrinkPhoto(file: File, max = 900): Promise<Blob> {
