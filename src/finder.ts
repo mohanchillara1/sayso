@@ -22,9 +22,35 @@ const asset = (path: string) => new URL(path, document.baseURI).href
 
 // Measured settings (75-photo test, 2026-10-09): the most objects found with no
 // names or questions on any of the 36 plain-texture photos.
-const DFINE: Settings = { nameAt: 0.35, askAt: 0.25, blocked: ["keyboard", "laptop"], steady: 2 }
-const MP_GPU: Settings = { nameAt: 0.55, askAt: 0.55, blocked: ["keyboard", "cake"], steady: 3 }
-const MP_CPU: Settings = { nameAt: 0.4, askAt: 0.4, blocked: ["keyboard", "umbrella"], steady: 3 }
+// D-FINE retuned 2026-10-13 on the same 75 photos with a padded second look (padLook);
+// the 46 held-out photos went from 22 right / 4 wrong to 23 right / 3 wrong, still no textures.
+const DFINE: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "laptop"], steady: 2, padLook: true }
+// MediaPipe raised 2026-10-13 after measuring at phone-camera size (640 px), where both named
+// some textures (wood grain -> "clock" 0.71). Padded looks made them worse, so they do not use it.
+const MP_GPU: Settings = { nameAt: 0.6, askAt: 0.6, blocked: ["keyboard", "cake"], steady: 3 }
+const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
+
+/** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
+async function download(url: string, onProgress?: (part: number) => void): Promise<ArrayBuffer> {
+  const res = await fetch(url)
+  if (!res.ok || !res.body) throw new Error(`could not download ${url}`)
+  const total = Number(res.headers.get("content-length")) || 0
+  if (!onProgress || !total) return res.arrayBuffer()
+  const out = new Uint8Array(total)
+  const reader = res.body.getReader()
+  let got = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (got + value.length > total) return new Blob([out.subarray(0, got), value]).arrayBuffer() // size was wrong: give up on progress, keep the bytes
+    out.set(value, got)
+    got += value.length
+    onProgress(got / total)
+  }
+  return got === total ? out.buffer : out.buffer.slice(0, got)
+}
+
+let progress: ((part: number) => void) | undefined
 
 async function dfineFinder(): Promise<Finder> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
@@ -32,7 +58,7 @@ async function dfineFinder(): Promise<Finder> {
   const ort = await import("onnxruntime-web/webgpu") // Vite copies its WebAssembly file into the build
   const [session, labels] = await Promise.all([
     // logSeverityLevel 3: hide ONNX Runtime's normal notice that a few steps run on the CPU.
-    ort.InferenceSession.create(asset("models/dfine_s_obj365.onnx"), { executionProviders: ["webgpu"], logSeverityLevel: 3 }),
+    download(asset("models/dfine_s_obj365.onnx"), (part) => progress?.(part)).then((bytes) => ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })),
     fetch(asset("models/dfine_s_obj365.labels.json")).then((r) => r.json() as Promise<string[]>),
   ])
   const SIZE = 640 // the model looks at a 640 x 640 picture
@@ -122,8 +148,12 @@ export const FINDERS: { name: string; make: () => Promise<Finder> }[] = [
 
 let loading: Promise<Finder> | null = null
 
-/** The best finder this phone can run. Loads once; later visits reuse it. */
-export function loadFinder(): Promise<Finder> {
+/**
+ * The best finder this phone can run. Loads once; later visits reuse it.
+ * `onProgress` hears how much of the big model file has arrived (0 to 1).
+ */
+export function loadFinder(onProgress?: (part: number) => void): Promise<Finder> {
+  if (onProgress) progress = onProgress
   if (!loading) {
     loading = (async () => {
       let last: unknown

@@ -1,12 +1,14 @@
 // Hear it, find it: practice with no helper. The phone says a word, the person taps
 // the matching picture out of up to four. The app checks the tap itself (it knows
 // which word it said), so nobody has to judge. Two wrong taps and it shows the
-// right one. Words without a photo show as written cards.
-import { h, button, show, guard } from "./ui"
+// right one. Words show their photo, else their built-in picture, else the written word.
+// First time, with no words yet, one tap adds the everyday starter words.
+import { h, button, show, guard, prompt, picture } from "./ui"
 import { listPhrases, saveSession, type SavedPhrase } from "./db"
-import { homeScreen, wordsScreen } from "./main"
+import { homeScreen, wordsScreen, addStarters } from "./main"
+import { STARTER } from "./starter"
 import { pickChoices, pickRound, judge, resultOf, summarise, MAX_WRONG, type FindResult } from "./findlogic"
-import { speak, canSpeak } from "./speak"
+import { speak, sayPrompt, canSpeak } from "./speak"
 
 const ROUND = 10
 
@@ -18,14 +20,16 @@ export async function findPick() {
   show("find", () => void homeScreen(),
     h("h2", {}, "Hear it, find it"),
     h("div", { class: "panel" },
-      h("p", { class: "say" }, "The phone says a word. Tap the picture that matches."),
-      h("p", {}, "No helper needed: the app knows which word it said. Turn the sound up."),
+      prompt("The phone says a word. Tap the picture that matches.", "p"),
+      h("p", {}, "The app knows which word it said, so it checks for you. Turn the sound up 🔊."),
       !canSpeak() ? h("p", { class: "warn" }, "This browser cannot speak words, so this mode will not work here.") : "",
-      enough ? "" : h("p", { class: "warn" }, "Add at least 2 words first (photos make it better)."),
+      enough ? "" : h("p", {}, `No words yet. Start with ${STARTER.length} everyday words with pictures.`),
     ),
     h("div", { class: "dock" },
-      enough && canSpeak() ? button(`Start (${ROUND} words)`, () => runFind(pickRound(all, ROUND), all), "btn go") : "",
-      button("Add words", () => void wordsScreen(), enough ? "btn" : "btn go"),
+      enough
+        ? (canSpeak() ? button(`Start (${ROUND} words)`, () => runFind(pickRound(all, ROUND), all), "btn go", "▶") : "")
+        : button(`Start with ${STARTER.length} words`, async () => { await addStarters(); void findPick() }, "btn go", "▶"),
+      button("My words", () => void wordsScreen(), "btn", "📝"),
     ),
   )
 }
@@ -43,13 +47,13 @@ function runFind(round: Item[], all: Item[]) {
     const status = h("p", { class: "status find-status" })
     status.setAttribute("role", "status")
     const dock = h("div", { class: "dock" })
-    const again = button("Say it again", () => void speak(target.text), "btn")
+    const again = button("Say it again", () => void speak(target.text), "btn", "🔊")
 
     const finishWord = (found: boolean) => {
       over = true
       const r = resultOf(wrong, found)
       grid.querySelectorAll("button").forEach((b) => ((b as HTMLButtonElement).disabled = b.dataset.right !== "1"))
-      dock.replaceChildren(button(i + 1 < round.length ? "Next →" : "Finish", () => void next(r), "btn go"))
+      dock.replaceChildren(again, button(i + 1 < round.length ? "Next" : "Finish", () => void next(r), "btn go", i + 1 < round.length ? "→" : "✔"))
     }
 
     let saving = false
@@ -75,7 +79,7 @@ function runFind(round: Item[], all: Item[]) {
       if (judge(c, target)) {
         el.classList.add("right")
         status.textContent = `Yes. ${target.text}.`
-        speak(target.text)
+        sayPrompt(`Yes. ${target.text}.`)
         finishWord(true)
         return
       }
@@ -86,11 +90,11 @@ function runFind(round: Item[], all: Item[]) {
         const right = grid.querySelector<HTMLButtonElement>('[data-right="1"]')
         right?.classList.add("right")
         status.textContent = `This one is ${target.text}.`
-        speak(target.text)
+        sayPrompt(`This one is ${target.text}.`)
         finishWord(false)
       } else {
         status.textContent = "Not that one. Listen again."
-        speak(target.text)
+        sayPrompt(`Not that one. ${target.text}.`)
       }
     }
 
@@ -98,10 +102,10 @@ function runFind(round: Item[], all: Item[]) {
       const el = h("button", { class: "choice", type: "button" }) as HTMLButtonElement
       el.setAttribute("aria-label", `Picture ${k + 1}`)
       if (c.id === target.id) el.dataset.right = "1"
-      if (c.photo) {
-        const u = URL.createObjectURL(c.photo)
-        urls.push(u)
-        el.append(h("img", { src: u, alt: "" }))
+      if (c.photo || c.pic) {
+        const p = picture(c, "pic")
+        if (p instanceof HTMLImageElement) urls.push(p.src)
+        el.append(p)
       } else {
         el.classList.add("text")
         el.append(h("span", {}, c.text))
@@ -112,7 +116,7 @@ function runFind(round: Item[], all: Item[]) {
 
     dock.replaceChildren(again)
     show("find", () => void findPick(),
-      h("h1", { class: "cue" }, "Which one is it?"),
+      h("div", { class: "prompt" }, h("h1", { class: "cue" }, "Which one is it?"), speakerBtn(target.text)),
       h("p", { class: "count" }, `${i + 1} of ${round.length}`),
       grid,
       status,
@@ -127,13 +131,20 @@ function runFind(round: Item[], all: Item[]) {
     show("find", null,
       h("h1", {}, "Done."),
       h("div", { class: "panel" },
-        h("p", { class: "say" }, `Found it first time: ${s.first} of ${results.length}.`),
+        prompt(`Found it first time: ${s.first} of ${results.length}.`, "p"),
         s.later ? h("p", {}, `Found it on the second try: ${s.later}.`) : "",
         s.shown ? h("p", {}, `The app showed you: ${s.shown}. Those are good ones to practise again.`) : "",
       ),
-      h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn"), button("Again", () => void findPick(), "btn go")),
+      h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn", "🏠"), button("Again", () => void findPick(), "btn go", "↻")),
     )
   }
 
   card()
+}
+
+/** The speaker next to "Which one is it?" says the word again: that is the question here. */
+function speakerBtn(word: string) {
+  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void speak(word)) }, "🔊")
+  b.setAttribute("aria-label", "Hear the word again")
+  return b
 }

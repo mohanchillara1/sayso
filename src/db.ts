@@ -2,15 +2,17 @@
 import type { Word } from "./syllables"
 import type { TapResult } from "./scoring"
 
-// One list for both modes. Every item has text (used by Sing it). An item with a
-// photo can also be used by Name it; cue/box/due only matter there.
+// One list for every mode. Every item has text. Hear it, find it shows its photo,
+// else its built-in picture. cue/box/due only matter to Name it (hidden for now).
 export type SavedPhrase = {
   id?: number
   text: string
   words: Word[]
   createdAt: number
   photo?: Blob
-  /** Caregiver-written sentence cue, e.g. "I drink coffee from my ___". */
+  /** Built-in picture (an emoji) for starter words that have no photo yet. */
+  pic?: string
+  /** Name it only: sentence cue, e.g. "I drink coffee from my ___". */
   cue?: string
   /** Review box 1..5 (Name it). */
   box?: number

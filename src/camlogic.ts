@@ -56,6 +56,11 @@ export type Settings = {
   blocked: string[]
   /** The same decision this many looks in a row before the picture freezes. */
   steady: number
+  /**
+   * Every other look, also try the picture shrunk into a grey frame (src/frameprep.ts padOut).
+   * Helps when something is held close and fills the picture. Measured 2026-10-13.
+   */
+  padLook?: boolean
 }
 
 export type Decision =
@@ -106,4 +111,11 @@ export function cropRect(box: Box, frameW: number, frameH: number, margin = 0.15
   const mx = box.w * margin, my = box.h * margin
   const x = Math.max(0, Math.floor(box.x - mx)), y = Math.max(0, Math.floor(box.y - my))
   return { x, y, w: Math.min(frameW, Math.ceil(box.x + box.w + mx)) - x, h: Math.min(frameH, Math.ceil(box.y + box.h + my)) - y }
+}
+
+/** The average of a few boxes: the frozen box sits where the object was over the last looks, not on one shaky frame. */
+export function meanBox(boxes: Box[]): Box {
+  const n = boxes.length || 1
+  const sum = boxes.reduce((a, b) => ({ x: a.x + b.x, y: a.y + b.y, w: a.w + b.w, h: a.h + b.h }), { x: 0, y: 0, w: 0, h: 0 })
+  return { x: sum.x / n, y: sum.y / n, w: sum.w / n, h: sum.h / n }
 }

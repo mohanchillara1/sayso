@@ -5,25 +5,28 @@
 // the object and "What is this?". The person tries to say it, taps "Hear it" to
 // check, and says for themselves whether they got it. If the finder was not sure,
 // "Hear it" first asks which of two or three words it is. The app does not listen.
-import { h, button, show } from "./ui"
+import { h, button, show, prompt } from "./ui"
 import { homeScreen } from "./main"
 import { currentEpoch, cancelled } from "./audio"
 import { saveSession, savePhrase, listPhrases } from "./db"
 import { analysePhrase, prepare } from "./syllables"
-import { speak } from "./speak"
-import { decide, decisionKey, steadyLabel, boxPercent, cropRect, type Decision } from "./camlogic"
+import { speak, sayPrompt } from "./speak"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, type Decision, type Box } from "./camlogic"
+import { padOut, unpadBox, meanLight } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
 export function cameraScreen() {
   // Start getting the finder ready while the person reads this screen; it can take a while the first time.
-  loadFinder().catch(() => { /* look() tries again and explains */ })
+  const bar = progressBar()
+  loadFinder(bar.set).catch(() => { /* look() tries again and explains */ })
   show("camera", () => void homeScreen(),
     h("h2", {}, "Point and name"),
-    h("p", { class: "cam-status" }, "Point the camera at one thing: a cup, a chair, a clock. When a yellow box appears, try to say what it is."),
+    prompt("Point the camera at one thing: a cup, a chair, a clock. When a yellow box appears, try to say what it is.", "p", "cam-status"),
     h("p", { class: "cam-note" }, NOTE),
-    h("div", { class: "dock" }, button("Start the camera", () => void look(), "btn go")),
+    bar.el,
+    h("div", { class: "dock" }, button("Start the camera", () => void look(), "btn go", "📷")),
   )
 }
 
@@ -32,7 +35,8 @@ async function look() {
   status.setAttribute("role", "status")
   const video = h("video", { muted: true, playsInline: true, autoplay: true }) as HTMLVideoElement
   const wrap = h("div", { class: "cam-wrap" }, video)
-  show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, h("p", { class: "cam-note" }, NOTE))
+  const bar = progressBar()
+  show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, bar.el, h("p", { class: "cam-note" }, NOTE))
   const ep2 = currentEpoch() // show() moved the epoch; leaving this screen moves it again
 
   let stream: MediaStream
@@ -50,33 +54,55 @@ async function look() {
   status.textContent = "Getting the object finder ready… The first time can take a minute."
   let finder: Finder
   try {
-    finder = await loadFinder()
+    finder = await loadFinder(bar.set)
   } catch {
     stop()
     if (!cancelled(ep2)) status.textContent = "Could not load the object finder. Check the internet connection for the first use, then try again."
     return
   }
   if (cancelled(ep2)) return stop()
+  bar.el.remove()
   status.textContent = "Looking… hold the phone still."
   wrap.dataset.finder = finder.name // for tests and the build report
 
   // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
-  const history: (string | null)[] = []
+  // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
+  // held close. The two kinds of look keep separate histories: each must agree with itself.
+  const histories: (string | null)[][] = [[], []]
+  const boxes: Box[][] = [[], []]
   const started = performance.now()
   let hinted = false
+  let darkSaid = false
+  let n = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
     if (video.readyState < 2) continue
+    const vw = video.videoWidth, vh = video.videoHeight
+    const padded = !!finder.settings.padLook && n++ % 2 === 1
     let d: Decision = { kind: "none" }
     try {
-      d = decide(await finder.detect(video, video.videoWidth, video.videoHeight), finder.settings)
+      const frame = padded ? padOut(video) : video
+      d = decide(await finder.detect(frame, vw, vh), finder.settings)
+      if (padded && d.kind !== "none") d = { ...d, box: unpadBox(d.box, vw, vh) }
     } catch { /* one bad frame: keep looking */ }
     if (cancelled(ep2)) break
-    history.push(decisionKey(d))
-    if (history.length > 20) history.shift()
-    if (d.kind !== "none" && steadyLabel(history, finder.settings.steady) === decisionKey(d)) return found(video, d, stop, ep2)
-    // In our tests a bottle held so close that it filled the picture was not found.
-    if (!hinted && performance.now() - started > 6000) {
+    const k = padded ? 1 : 0
+    histories[k].push(decisionKey(d))
+    boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
+    if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
+    const steady = finder.settings.steady
+    if (d.kind !== "none" && steadyLabel(histories[k], steady) === decisionKey(d)) {
+      // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
+      return found(video, { ...d, box: meanBox(boxes[k].slice(-steady)) }, stop, ep2)
+    }
+    const secs = performance.now() - started
+    // Too dark to see: say so once, early. The finder found about half as many things in our dark test photos.
+    if (!darkSaid && secs > 1500 && isDark(video)) {
+      darkSaid = true
+      status.textContent = "It is dark here. Turn on a light, then point at the thing again."
+      sayPrompt("It is dark. Turn on a light.")
+    } else if (!hinted && secs > 6000) {
+      // In our tests a bottle held so close that it filled the picture was not found.
       hinted = true
       status.textContent = "Still looking. Try holding it a bit further away, so all of it is in the picture."
     }
@@ -114,9 +140,10 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
       return
     }
     status.textContent = r === "got" ? "Saved: you got it." : "Saved. Keep practising this one."
+    sayPrompt(r === "got" ? "Well done." : "OK. Keep practising.")
     dock.replaceChildren(
-      button("Save to my words", () => void keep(), "btn"),
-      button("Look again", () => void look(), "btn go"),
+      button("Save to my words", () => void keep(), "btn", "＋"),
+      button("Look again", () => void look(), "btn go", "📷"),
     )
   }
 
@@ -132,10 +159,10 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
       const photo = await new Promise<Blob>((res, rej) => cut.toBlob((b) => (b ? res(b) : rej(new Error("photo"))), "image/jpeg", 0.85))
       await savePhrase({ text: clean.text, words: analysePhrase(clean.text), createdAt: Date.now(), photo })
       kept = true
-      dock.replaceChildren(button("Look again", () => void look(), "btn go"))
+      dock.replaceChildren(button("Look again", () => void look(), "btn go", "📷"))
       status.textContent = have
-        ? `Saved another "${clean.text}" to your words. Rename or remove it in Words.`
-        : `Saved "${clean.text}" to your words with this photo. A helper can rename it in Words.`
+        ? `Saved another "${clean.text}" to your words. Rename or remove it in My words.`
+        : `Saved "${clean.text}" to your words with this photo. You can rename it in My words.`
     } catch {
       status.textContent = "Could not save to your words. Try again."
     }
@@ -144,10 +171,11 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
   const choose = () => {
     if (d.kind !== "ask") return hear()
     status.textContent = "The app is not sure. Which one is it?"
+    sayPrompt("Which one is it?")
     answer.replaceChildren()
     dock.replaceChildren(
       h("div", { class: "choices" }, ...d.words.map((w) => button(w, () => { word = w; hear() }, "btn"))),
-      button("None of these", () => void look(), "btn quiet"),
+      button("None of these", () => void look(), "btn quiet", "✖"),
     )
   }
 
@@ -158,14 +186,42 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
     status.textContent = "Did you say it? Only you know: there is no one checking."
     dock.replaceChildren(
       h("div", { class: "dock two flat" },
-        button("Not yet", () => void rate("notyet"), "btn"),
-        button("Got it", () => void rate("got"), "btn"),
+        button("Not yet", () => void rate("notyet"), "btn", "✖"),
+        button("Got it", () => void rate("got"), "btn", "✔"),
       ),
-      button("Hear it again", () => void speak(word), "btn quiet"),
+      button("Hear it again", () => void speak(word), "btn quiet", "🔊"),
     )
   }
 
-  dock.replaceChildren(button("Hear it", choose, "btn go"), button("Look again", () => void look(), "btn quiet"))
+  dock.replaceChildren(button("Hear it", choose, "btn go", "🔊"), button("Look again", () => void look(), "btn quiet", "📷"))
   if (cancelled(ep)) return
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, answer, status, dock)
+  sayPrompt("What is this? Try to say it.")
+}
+
+/** A thin bar showing how much of the object finder has downloaded (only shown while it downloads). */
+function progressBar() {
+  const fill = h("i", {})
+  const label = h("span", {}, "")
+  const el = h("div", { class: "dl", hidden: true }, h("div", { class: "dl-bar" }, fill), label)
+  el.setAttribute("role", "progressbar")
+  return {
+    el,
+    set: (part: number) => {
+      const pc = Math.round(part * 100)
+      el.hidden = pc >= 100
+      fill.style.width = `${pc}%`
+      el.setAttribute("aria-valuenow", String(pc))
+      label.textContent = `Getting the object finder ready: ${pc}%`
+    },
+  }
+}
+
+const lightCanvas = document.createElement("canvas")
+/** Is the camera picture too dark to see things? (average brightness under 0.18, on a small copy) */
+function isDark(video: HTMLVideoElement): boolean {
+  lightCanvas.width = 64; lightCanvas.height = 48
+  const x = lightCanvas.getContext("2d", { willReadFrequently: true })!
+  x.drawImage(video, 0, 0, 64, 48)
+  return meanLight(x.getImageData(0, 0, 64, 48).data) < 0.18
 }

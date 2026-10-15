@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, WORDS, COCO_HOME, type Settings } from "./camlogic"
+import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, WORDS, COCO_HOME, type Settings } from "./camlogic"
 
 const det = (label: string, score: number) => ({ label, score, box: { x: 10, y: 20, w: 100, h: 50 } })
 const S: Settings = { nameAt: 0.5, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
@@ -71,5 +71,9 @@ describe("boxes", () => {
     const c = cropRect({ x: 600, y: 450, w: 100, h: 100 }, 640, 480)
     expect(c.x + c.w).toBeLessThanOrEqual(640)
     expect(c.y + c.h).toBeLessThanOrEqual(480)
+  })
+  it("averages shaky boxes into one", () => {
+    expect(meanBox([{ x: 10, y: 20, w: 100, h: 50 }, { x: 14, y: 18, w: 104, h: 54 }])).toEqual({ x: 12, y: 19, w: 102, h: 52 })
+    expect(meanBox([{ x: 1, y: 2, w: 3, h: 4 }])).toEqual({ x: 1, y: 2, w: 3, h: 4 })
   })
 })

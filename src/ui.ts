@@ -1,9 +1,18 @@
 // Small DOM helpers and the page frame every screen sits in.
 import { stopAll } from "./audio"
+import { sayPrompt } from "./speak"
+import type { SavedPhrase } from "./db"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
 export type Mode = "home" | "sing" | "name" | "find" | "camera"
+
+/**
+ * Name it and Sing it need a helper or are not checked yet, so for now the app
+ * shows only the two modes a person can use alone (Mohan, 2026-10-13). Their code
+ * stays; set this to true to bring them back.
+ */
+export const HELPER_MODES = false
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
   const el = document.createElement(tag)
@@ -28,7 +37,23 @@ export function guard<A extends unknown[]>(fn: (...a: A) => unknown) {
   }
 }
 
-export const button = (label: string, onClick: () => void, cls = "btn") => h("button", { class: cls, type: "button", onclick: guard(onClick) }, label)
+/** A button. `icon` (an emoji) sits before the words so every button has a picture and a word; screen readers skip the icon. */
+export const button = (label: string, onClick: () => void, cls = "btn", icon?: string) =>
+  h("button", { class: cls, type: "button", onclick: guard(onClick) }, ...(icon ? [h("span", { class: "ic", ariaHidden: "true" }, icon), " "] : []), label)
+
+/** A prompt with a speaker button next to it, so every prompt can be heard as well as read. */
+export function prompt(text: string, tag: "h2" | "p" = "h2", cls = "") {
+  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void sayPrompt(text)) }, "🔊")
+  b.setAttribute("aria-label", `Hear: ${text}`)
+  return h("div", { class: `prompt ${cls}` }, h(tag, tag === "p" ? { class: "say" } : {}, text), b)
+}
+
+/** The picture for a word: its photo, else its built-in picture (emoji), else its first letter. */
+export function picture(p: SavedPhrase, cls: string): HTMLElement {
+  if (p.photo) return h("img", { class: cls, src: URL.createObjectURL(p.photo), alt: "" })
+  if (p.pic) return h("span", { class: `${cls} emoji`, ariaHidden: "true" }, p.pic)
+  return h("span", { class: `${cls} none` }, p.text.charAt(0).toUpperCase())
+}
 
 const app = document.querySelector<HTMLDivElement>("#app")!
 
