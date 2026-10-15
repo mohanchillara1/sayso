@@ -157,3 +157,16 @@ body[data-mode="camera"] .btn.quiet { color: var(--cream); border-color: var(--c
 .fine summary { font-weight: 800; font-size: 1.15rem; min-height: 48px; display: flex; align-items: center; cursor: pointer; }
 .fine[open] summary { margin-bottom: 12px; }
 .cam-status .say { color: var(--cream); font-weight: 400; font-size: 1rem; text-align: left; }
+
+/* Point and name, live feedback (2026-10-15): the guess, how sure, what to do, which finder */
+.dl { color: var(--cream); font-size: 15px; display: grid; gap: 6px; }
+.dl-bar, .sure-bar { height: 16px; border: 2px solid var(--cream); border-radius: 8px; overflow: hidden; }
+.dl-bar i, .sure-bar i { display: block; height: 100%; width: 0; background: var(--sun); transition: width .2s; }
+.sure { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; color: var(--cream); }
+.sure-line { grid-column: 1 / -1; font-size: 1.15rem; }
+.sure-line b { font-family: var(--display); font-size: 1.6rem; color: var(--sun); }
+.sure-pc { font-weight: 800; font-size: 1.3rem; min-width: 3.2em; text-align: right; }
+.cam-hint { color: var(--ink); background: var(--sun); border: 3px solid var(--cream); border-radius: 14px; padding: 10px 14px; font-weight: 700; font-size: 1.2rem; margin: 0; min-height: 3.2em; display: flex; align-items: center; gap: 10px; }
+.cam-hint[hidden] { display: none; }
+.cam-wrap .box.live { border-style: dashed; border-width: 4px; box-shadow: none; transition: left .15s, top .15s, width .15s, height .15s; }
+.finder-badge { position: absolute; right: 8px; top: 8px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 13px; padding: 3px 8px; border-radius: 8px; }

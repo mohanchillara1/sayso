@@ -14,6 +14,8 @@ import { decide, COCO_HOME, type Det, type Settings } from "./camlogic"
 export type Frame = HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
 export type Finder = {
   name: string
+  /** A short name shown in a corner of the camera picture, so a tester knows which finder runs. */
+  short: string
   settings: Settings
   detect(frame: Frame, w: number, h: number): Promise<Det[]>
 }
@@ -68,6 +70,7 @@ async function dfineFinder(): Promise<Finder> {
   const pixels = new Float32Array(3 * SIZE * SIZE)
   return {
     name: "D-FINE small (Objects365), WebGPU",
+    short: "D-FINE",
     settings: DFINE,
     async detect(frame, w, h) {
       // Stretch the frame to 640 x 640 and turn it into the numbers the model expects (0 to 1, red plane first).
@@ -104,6 +107,7 @@ async function dfineFinder(): Promise<Finder> {
 }
 
 export async function mediapipeFinder(model: string, delegate: "GPU" | "CPU", settings: Settings, name: string): Promise<Finder> {
+  const short = `MediaPipe ${delegate}`
   const { FilesetResolver, ObjectDetector } = await import("@mediapipe/tasks-vision")
   const files = await FilesetResolver.forVisionTasks(asset("mediapipe"))
   const det = await ObjectDetector.createFromOptions(files, {
@@ -116,6 +120,7 @@ export async function mediapipeFinder(model: string, delegate: "GPU" | "CPU", se
   let t = 0
   return {
     name,
+    short,
     settings,
     async detect(frame) {
       // MediaPipe wants a timestamp that always goes up.

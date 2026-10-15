@@ -11,7 +11,7 @@ import { currentEpoch, cancelled } from "./epoch"
 import { saveSession, savePhrase, listPhrases } from "./db"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
-import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, type Decision, type Box } from "./camlogic"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, type Decision, type Box, type Hint } from "./camlogic"
 import { padOut, unpadBox, meanLight } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 
@@ -65,27 +65,47 @@ async function look() {
   status.textContent = "Looking… hold the phone still."
   wrap.dataset.finder = finder.name // for tests and the build report
 
+  // What the finder sees, live: its best guess, how sure it is, a dashed box where it is, and what to do.
+  const badge = h("span", { class: "finder-badge" }, finder.short)
+  const liveBox = h("div", { class: "box live", hidden: true })
+  wrap.append(liveBox, badge)
+  const guessWord = h("b", {}, "…")
+  const fill = h("i", {})
+  const pct = h("span", { class: "sure-pc" }, "0%")
+  const meter = h("div", { class: "sure" }, h("div", { class: "sure-line" }, h("span", {}, "Best guess: "), guessWord), h("div", { class: "sure-bar" }, fill), pct)
+  meter.setAttribute("role", "meter")
+  meter.setAttribute("aria-valuemin", "0")
+  meter.setAttribute("aria-valuemax", "100")
+  const hintIc = h("span", { class: "ic", ariaHidden: "true" }, "")
+  const hintText = h("span", {}, "")
+  const hintEl = h("p", { class: "cam-hint", hidden: true }, hintIc, hintText)
+  hintEl.setAttribute("aria-live", "polite")
+  status.replaceWith(meter, hintEl)
+
   // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
   // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
   // held close. The two kinds of look keep separate histories: each must agree with itself.
   const histories: (string | null)[][] = [[], []]
   const boxes: Box[][] = [[], []]
   const started = performance.now()
-  let hinted = false
-  let darkSaid = false
-  let n = 0
+  let shownHint: Hint | null = null, lastSaid = 0, n = 0, msAvg = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
     if (video.readyState < 2) continue
     const vw = video.videoWidth, vh = video.videoHeight
     const padded = !!finder.settings.padLook && n++ % 2 === 1
     let d: Decision = { kind: "none" }
+    let guess: ReturnType<typeof bestGuess> = null
+    const t0 = performance.now()
     try {
-      const frame = padded ? padOut(video) : video
-      d = decide(await finder.detect(frame, vw, vh), finder.settings)
-      if (padded && d.kind !== "none") d = { ...d, box: unpadBox(d.box, vw, vh) }
+      let dets = await finder.detect(padded ? padOut(video) : video, vw, vh)
+      if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, vw, vh) }))
+      d = decide(dets, finder.settings)
+      guess = bestGuess(dets, finder.settings)
     } catch { /* one bad frame: keep looking */ }
     if (cancelled(ep2)) break
+    msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
+    badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
     const k = padded ? 1 : 0
     histories[k].push(decisionKey(d))
     boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
@@ -95,19 +115,44 @@ async function look() {
       // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
       return found(video, { ...d, box: meanBox(boxes[k].slice(-steady)) }, stop, ep2)
     }
-    const secs = performance.now() - started
-    // Too dark to see: say so once, early. The finder found about half as many things in our dark test photos.
-    if (!darkSaid && secs > 1500 && isDark(video)) {
-      darkSaid = true
-      status.textContent = "It is dark here. Turn on a light, then point at the thing again."
-      sayPrompt("It is dark. Turn on a light.")
-    } else if (!hinted && secs > 6000) {
-      // In our tests a bottle held so close that it filled the picture was not found.
-      hinted = true
-      status.textContent = "Still looking. Try holding it a bit further away, so all of it is in the picture."
+
+    // Show the guess and how sure the finder is (100% = sure enough to name it).
+    const pc = guess ? surePercent(guess.score, finder.settings) : 0
+    guessWord.textContent = guess ? guess.word : "nothing yet"
+    fill.style.width = `${pc}%`
+    pct.textContent = `${pc}%`
+    meter.setAttribute("aria-valuenow", String(pc))
+    if (guess) {
+      const p = boxPercent(guess.box, vw, vh)
+      Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+    }
+    liveBox.hidden = !guess
+
+    // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
+    const hint = hintFor(guess, vw, vh, isDark(video), finder.settings, performance.now() - started)
+    if (hint !== shownHint) {
+      shownHint = hint
+      hintIc.textContent = HINTS[hint].icon
+      hintText.textContent = HINTS[hint].text
+      hintEl.hidden = false
+    }
+    if (HINTS[hint].say && performance.now() - lastSaid > 5000 && performance.now() - started > 1500) {
+      lastSaid = performance.now()
+      sayPrompt(HINTS[hint].say!)
     }
   }
   stop()
+}
+
+/** The hints shown (and the short ones spoken) while the camera looks. */
+const HINTS: Record<Hint, { icon: string; text: string; say?: string }> = {
+  show: { icon: "✋", text: "Hold one thing in front of the camera." },
+  far: { icon: "↔️", text: "Nothing found yet. Hold it in the middle, a little further away.", say: "Move it back a little." },
+  middle: { icon: "🎯", text: "Move it to the middle.", say: "Move it to the middle." },
+  closer: { icon: "🔍", text: "Move it closer.", say: "Move it closer." },
+  back: { icon: "↔️", text: "Move it back a little, so all of it shows.", say: "Move it back a little." },
+  light: { icon: "💡", text: "It is dark here. Turn on a light.", say: "More light, please." },
+  still: { icon: "👍", text: "Good. Hold still." },
 }
 
 function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, stopCamera: () => void, ep: number) {

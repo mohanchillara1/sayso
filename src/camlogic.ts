@@ -119,3 +119,34 @@ export function meanBox(boxes: Box[]): Box {
   const sum = boxes.reduce((a, b) => ({ x: a.x + b.x, y: a.y + b.y, w: a.w + b.w, h: a.h + b.h }), { x: 0, y: 0, w: 0, h: 0 })
   return { x: sum.x / n, y: sum.y / n, w: sum.w / n, h: sum.h / n }
 }
+
+/** The finder's best home-word guess this look (blocked words left out), even if it is too unsure to use. */
+export function bestGuess(dets: Det[], s: Settings): (Det & { word: string }) | null {
+  let best: (Det & { word: string }) | null = null
+  for (const d of dets) {
+    const word = wordFor(d.label)
+    if (word && !s.blocked.includes(word) && (!best || d.score > best.score)) best = { ...d, word }
+  }
+  return best
+}
+
+/**
+ * How sure the finder is, as a percent of what it needs to name the thing: 100 means sure
+ * enough to name it (a score at or above nameAt). Shown as a bar while the camera looks.
+ */
+export const surePercent = (score: number, s: Settings) => Math.round(Math.min(1, Math.max(0, score / s.nameAt)) * 100)
+
+export type Hint = "show" | "far" | "middle" | "closer" | "back" | "light" | "still"
+/** What to tell the person, from where the best guess sits in the picture and how sure the finder is. */
+export function hintFor(guess: { box: Box; score: number } | null, frameW: number, frameH: number, dark: boolean, s: Settings, lookingMs: number): Hint {
+  if (dark) return "light"
+  if (!guess) return lookingMs > 5000 ? "far" : "show" // in our tests, things held so close they filled the picture were not found
+  const b = guess.box
+  const area = (b.w * b.h) / (frameW * frameH)
+  const edges = [b.x <= frameW * 0.02, b.y <= frameH * 0.02, b.x + b.w >= frameW * 0.98, b.y + b.h >= frameH * 0.98].filter(Boolean).length
+  if (area > 0.7 || edges >= 3) return "back"
+  if (area < 0.03) return "closer"
+  const cx = (b.x + b.w / 2) / frameW, cy = (b.y + b.h / 2) / frameH
+  if (Math.abs(cx - 0.5) > 0.25 || Math.abs(cy - 0.5) > 0.25) return "middle"
+  return "still"
+}

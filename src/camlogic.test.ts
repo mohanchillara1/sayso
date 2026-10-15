@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, WORDS, COCO_HOME, type Settings } from "./camlogic"
+import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, WORDS, COCO_HOME, type Settings } from "./camlogic"
 
 const det = (label: string, score: number) => ({ label, score, box: { x: 10, y: 20, w: 100, h: 50 } })
 const S: Settings = { nameAt: 0.5, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
@@ -75,5 +75,28 @@ describe("boxes", () => {
   it("averages shaky boxes into one", () => {
     expect(meanBox([{ x: 10, y: 20, w: 100, h: 50 }, { x: 14, y: 18, w: 104, h: 54 }])).toEqual({ x: 12, y: 19, w: 102, h: 52 })
     expect(meanBox([{ x: 1, y: 2, w: 3, h: 4 }])).toEqual({ x: 1, y: 2, w: 3, h: 4 })
+  })
+})
+
+describe("live feedback", () => {
+  const S: Settings = { nameAt: 0.4, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
+  const at = (label: string, score: number, box = { x: 270, y: 190, w: 100, h: 100 }) => ({ label, score, box })
+  it("bestGuess takes the top home word and skips blocked and unknown ones", () => {
+    expect(bestGuess([at("keyboard", 0.9), at("person", 0.8), at("cup", 0.2), at("bottle", 0.1)], S)?.word).toBe("cup")
+    expect(bestGuess([at("person", 0.8)], S)).toBeNull()
+  })
+  it("surePercent is 100 at the naming point and never over", () => {
+    expect(surePercent(0.2, S)).toBe(50)
+    expect(surePercent(0.4, S)).toBe(100)
+    expect(surePercent(0.9, S)).toBe(100)
+  })
+  it("hintFor reads the box", () => {
+    expect(hintFor(null, 640, 480, true, S, 0)).toBe("light")
+    expect(hintFor(null, 640, 480, false, S, 1000)).toBe("show")
+    expect(hintFor(null, 640, 480, false, S, 6000)).toBe("far")
+    expect(hintFor(at("cup", 0.2, { x: 0, y: 0, w: 640, h: 480 }), 640, 480, false, S, 0)).toBe("back")
+    expect(hintFor(at("cup", 0.2, { x: 300, y: 220, w: 20, h: 20 }), 640, 480, false, S, 0)).toBe("closer")
+    expect(hintFor(at("cup", 0.2, { x: 10, y: 10, w: 120, h: 120 }), 640, 480, false, S, 0)).toBe("middle")
+    expect(hintFor(at("cup", 0.2), 640, 480, false, S, 0)).toBe("still")
   })
 })
