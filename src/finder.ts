@@ -54,15 +54,41 @@ async function download(url: string, onProgress?: (part: number) => void): Promi
 
 let progress: ((part: number) => void) | undefined
 
+// The D-FINE file is kept in the browser's Cache Storage after the first download, so later
+// visits read it from the phone instead of the network. The cache name carries the model's
+// revision: a new model file means a new cache.
+const MODEL_URL = () => asset("models/dfine_s_obj365.onnx")
+const MODEL_CACHE = "sayso-dfine-a61e4cd"
+
+async function modelBytes(onProgress?: (part: number) => void): Promise<ArrayBuffer> {
+  let cache: Cache | undefined
+  try { cache = await caches.open(MODEL_CACHE) } catch { /* no Cache Storage here: just download */ }
+  const hit = await cache?.match(MODEL_URL())
+  if (hit) { onProgress?.(1); return hit.arrayBuffer() }
+  const bytes = await download(MODEL_URL(), onProgress)
+  try { await cache?.put(MODEL_URL(), new Response(bytes.slice(0))) } catch { /* full or blocked: next time downloads again */ }
+  return bytes
+}
+
+/** Is the D-FINE file already on this phone? */
+async function modelCached(): Promise<boolean> {
+  try { return !!(await (await caches.open(MODEL_CACHE)).match(MODEL_URL())) } catch { return false }
+}
+
 async function dfineFinder(): Promise<Finder> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
   if (!gpu || !(await gpu.requestAdapter())) throw new Error("no WebGPU")
+  performance.mark("finder:start")
   const ort = await import("onnxruntime-web/webgpu") // Vite copies its WebAssembly file into the build
   const [session, labels] = await Promise.all([
     // logSeverityLevel 3: hide ONNX Runtime's normal notice that a few steps run on the CPU.
-    download(asset("models/dfine_s_obj365.onnx"), (part) => progress?.(part)).then((bytes) => ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })),
+    modelBytes((part) => progress?.(part)).then((bytes) => {
+      performance.mark("finder:downloaded")
+      return ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
+    }),
     fetch(asset("models/dfine_s_obj365.labels.json")).then((r) => r.json() as Promise<string[]>),
   ])
+  performance.mark("finder:session")
   const SIZE = 640 // the model looks at a 640 x 640 picture
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = SIZE
@@ -141,6 +167,7 @@ export async function selfTest(f: Finder): Promise<Finder> {
   const d = decide(await f.detect(img, img.naturalWidth, img.naturalHeight), f.settings)
   const sawCup = (d.kind === "name" && d.word === "cup") || (d.kind === "ask" && d.words.includes("cup"))
   if (!sawCup) throw new Error(`${f.name} failed its self-test`)
+  performance.mark("finder:ready") // the timing marks are read by our speed test
   return f
 }
 
@@ -174,4 +201,12 @@ export function loadFinder(onProgress?: (part: number) => void): Promise<Finder>
     loading.catch(() => { loading = null }) // let a later visit try again
   }
   return loading
+}
+
+/**
+ * Called from the home screen. If the D-FINE file is already on this phone (no download
+ * cost), start getting the finder ready in the background, so Point and name opens ready.
+ */
+export function warmFinder() {
+  setTimeout(() => void modelCached().then((yes) => { if (yes) loadFinder().catch(() => { /* Point and name tries again */ }) }), 1000)
 }

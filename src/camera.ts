@@ -84,9 +84,11 @@ async function look() {
 
   // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
   // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
-  // held close. The two kinds of look keep separate histories: each must agree with itself.
-  const histories: (string | null)[][] = [[], []]
-  const boxes: Box[][] = [[], []]
+  // held close. It freezes when the last few plain looks agree, the last few padded looks
+  // agree, or the last few looks of either kind agree (the quickest: two looks in a row).
+  // A third history holds every look, so a plain look and a padded look that agree also count.
+  const histories: (string | null)[][] = [[], [], []]
+  const boxes: Box[][] = [[], [], []]
   const started = performance.now()
   let shownHint: Hint | null = null, lastSaid = 0, n = 0, msAvg = 0
   while (!cancelled(ep2)) {
@@ -106,14 +108,16 @@ async function look() {
     if (cancelled(ep2)) break
     msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
     badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
-    const k = padded ? 1 : 0
-    histories[k].push(decisionKey(d))
-    boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
-    if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
     const steady = finder.settings.steady
-    if (d.kind !== "none" && steadyLabel(histories[k], steady) === decisionKey(d)) {
+    for (const k of [padded ? 1 : 0, 2]) {
+      histories[k].push(decisionKey(d))
+      boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
+      if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
+    }
+    const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
+    if (d.kind !== "none" && agreed !== undefined) {
       // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
-      return found(video, { ...d, box: meanBox(boxes[k].slice(-steady)) }, stop, ep2)
+      return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, stop, ep2)
     }
 
     // Show the guess and how sure the finder is (100% = sure enough to name it).

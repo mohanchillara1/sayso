@@ -12,6 +12,7 @@ import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase }
 import { h, button, show, shrinkPhoto, guard, prompt, picture, DISCLAIMER } from "./ui"
 import { findPick } from "./find"
 import { cameraScreen } from "./camera"
+import { warmFinder } from "./finder"
 import { STARTER, missingStarters } from "./starter"
 import { voices, currentVoice, chooseVoice, onVoices, speak } from "./speak"
 
@@ -49,6 +50,7 @@ export async function homeScreen() {
       button("Settings", settingsScreen, "btn", "⚙"),
     ),
   )
+  warmFinder()
 }
 
 function modeTile(cls: string, icon: string, title: string, about: string, go: () => void) {
