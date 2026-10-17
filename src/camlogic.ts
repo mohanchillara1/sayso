@@ -149,21 +149,98 @@ export type Decision =
 /** The word we say for a finder's class name, or null if it is not a home word. */
 export const wordFor = (label: string): string | null => WORDS[label.toLowerCase()] ?? null
 
-/** Name the object, ask between up to 3 words, or keep looking. */
-export function decide(dets: Det[], s: Settings): Decision {
-  const ok = dets
+/**
+ * What the camera is looking at, so the app picks the thing being shown and not the room behind it
+ * (dad's retest, 2026-10-15: it kept naming the lamp behind him instead of the marker in his hand).
+ */
+export type View = {
+  /** Frame size, in the same units as the boxes. */
+  w: number
+  h: number
+  /** Boxes of things already there when the camera started looking: the room. */
+  room?: Box[]
+  /** The person tapped a thing: only look there. */
+  lock?: Box | null
+}
+export type Cand = Det & { word: string }
+
+/** Big things that belong to the room. They lose to a smaller thing nearer the middle, but are still named on their own. */
+export const ROOM_WORDS = new Set([
+  "lamp", "TV", "chair", "table", "bed", "couch", "picture", "mirror", "plant", "fridge", "oven", "stove", "sink", "toilet",
+  "bath", "shower", "bench", "stool", "bedside table", "radiator", "air conditioner", "fan", "washing machine", "dishwasher",
+  "piano", "cooker hood", "clock", "lantern",
+])
+
+export function iou(a: Box, b: Box): number {
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y)
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h)
+  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1)
+  const union = a.w * a.h + b.w * b.h - inter
+  return union > 0 ? inter / union : 0
+}
+
+/** How far a box's middle is from the picture's middle: 0 in the middle, 1 in a corner. */
+const offCentre = (b: Box, v: View) => Math.hypot((b.x + b.w / 2) / v.w - 0.5, (b.y + b.h / 2) / v.h - 0.5) / Math.SQRT1_2
+
+/** The home-word guesses this look (blocked words left out), highest score first. */
+export function candidates(dets: Det[], s: Settings): Cand[] {
+  return dets
     .map((d) => ({ ...d, word: wordFor(d.label) }))
-    .filter((d): d is Det & { word: string } => d.word !== null && !s.blocked.includes(d.word))
+    .filter((d): d is Cand => d.word !== null && !s.blocked.includes(d.word))
     .sort((a, b) => b.score - a.score)
-  const top = ok[0]
+}
+
+/**
+ * How much the app wants this guess to be the thing being shown: its score, lowered when it is
+ * far from the middle, tiny, part of the room since the start, or a big room thing while a smaller
+ * thing sits nearer the middle. Without a view, just the score.
+ */
+export function salience(c: Cand, all: Cand[], v?: View): number {
+  if (!v) return c.score
+  const area = (c.box.w * c.box.h) / (v.w * v.h)
+  let k = 1 - 0.7 * Math.min(1, offCentre(c.box, v)) // middle 1, corner 0.3
+  if (area < 0.01) k *= 0.6 // a speck
+  if (v.room?.some((r) => iou(r, c.box) >= 0.5)) k *= 0.5 // there since the camera started
+  const smallerNearer = all.some((o) => o !== c && !ROOM_WORDS.has(o.word) && o.box.w * o.box.h < c.box.w * c.box.h && offCentre(o.box, v) < offCentre(c.box, v))
+  if (ROOM_WORDS.has(c.word) && smallerNearer) k *= 0.6
+  return c.score * k
+}
+
+/**
+ * Can this guess be the thing being shown? With a tapped spot: it must be in that spot. Otherwise
+ * it must be in the middle: its centre in the middle half of the picture, or its box over the
+ * very middle. Things off to the side (a lamp behind the person) are never named; the app says
+ * "Move it to the middle" instead. Without a view (tests, the self-test), everything can.
+ */
+export function inFocus(c: Cand, v?: View): boolean {
+  if (!v) return true
+  const cx = c.box.x + c.box.w / 2, cy = c.box.y + c.box.h / 2
+  if (v.lock) { const L = v.lock; return iou(c.box, L) >= 0.2 || (cx >= L.x && cx <= L.x + L.w && cy >= L.y && cy <= L.y + L.h) }
+  const middle = Math.abs(cx / v.w - 0.5) <= 0.25 && Math.abs(cy / v.h - 0.5) <= 0.25
+  const overMiddle = c.box.x <= v.w / 2 && c.box.x + c.box.w >= v.w / 2 && c.box.y <= v.h / 2 && c.box.y + c.box.h >= v.h / 2
+  return middle || overMiddle
+}
+
+/** The thing the person is showing: the most salient guess (only guesses in focus if `focusOnly`). */
+export function pickTarget(cands: Cand[], v?: View, focusOnly = true): Cand | null {
+  const pool = v?.lock || focusOnly ? cands.filter((c) => inFocus(c, v)) : cands
+  let best: Cand | null = null, bestS = -1
+  for (const c of pool) { const sc = salience(c, pool, v); if (sc > bestS) { best = c; bestS = sc } }
+  return best
+}
+
+/** Name the object, ask between up to 3 words, or keep looking. The thresholds apply to the chosen thing's own score. */
+export function decide(dets: Det[], s: Settings, v?: View): Decision {
+  const all = candidates(dets, s)
+  const top = pickTarget(all, v)
   if (!top) return { kind: "none" }
   const either = EITHER[top.label.toLowerCase()]
   if (top.score >= s.nameAt) return either ? { kind: "ask", words: either, box: top.box } : { kind: "name", word: top.word, box: top.box }
   if (top.score < s.askAt) return { kind: "none" }
-  // Not sure: offer the words the finder was weighing, near-misses included.
+  // Not sure: offer the words the finder was weighing for this same thing (boxes that overlap it).
   const words: string[] = []
-  for (const d of ok) {
-    if (d.score < s.askAt * 0.75) continue
+  for (const d of all) {
+    if (d.score < s.askAt * 0.75 || (d !== top && iou(d.box, top.box) < 0.3)) continue
     for (const w of EITHER[d.label.toLowerCase()] ?? [d.word]) if (!words.includes(w)) words.push(w)
   }
   return { kind: "ask", words: words.slice(0, 3), box: top.box }
@@ -202,14 +279,10 @@ export function meanBox(boxes: Box[]): Box {
   return { x: sum.x / n, y: sum.y / n, w: sum.w / n, h: sum.h / n }
 }
 
-/** The finder's best home-word guess this look (blocked words left out), even if it is too unsure to use. */
-export function bestGuess(dets: Det[], s: Settings): (Det & { word: string }) | null {
-  let best: (Det & { word: string }) | null = null
-  for (const d of dets) {
-    const word = wordFor(d.label)
-    if (word && !s.blocked.includes(word) && (!best || d.score > best.score)) best = { ...d, word }
-  }
-  return best
+/** The thing the app is looking at this look (see pickTarget), even if it is too unsure to use. For the live bar. */
+export function bestGuess(dets: Det[], s: Settings, v?: View): Cand | null {
+  const all = candidates(dets, s)
+  return pickTarget(all, v) ?? pickTarget(all, v, false) // nothing in the middle: show what is off to the side, so the hint can say where
 }
 
 /**

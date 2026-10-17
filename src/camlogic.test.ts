@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, WORDS, LEFT_OUT, COCO_HOME, type Settings } from "./camlogic"
+import { decide, decisionKey, steadyLabel, wordFor, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, iou, WORDS, LEFT_OUT, COCO_HOME, type Settings } from "./camlogic"
 
 const det = (label: string, score: number) => ({ label, score, box: { x: 10, y: 20, w: 100, h: 50 } })
 const S: Settings = { nameAt: 0.5, askAt: 0.3, blocked: ["keyboard"], steady: 2 }
@@ -119,5 +119,41 @@ describe("every Objects365 class is decided", () => {
   it("knows earbuds and headphones", () => {
     expect(wordFor("earphone")).toBe("earbuds")
     expect(wordFor("Head Phone")).toBe("headphones")
+  })
+})
+
+describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)", () => {
+  const D: Settings = { nameAt: 0.325, askAt: 0.275, blocked: [], steady: 2 }
+  const V = { w: 640, h: 480 }
+  const lampCorner = { label: "Lamp", score: 0.6, box: { x: 480, y: 20, w: 120, h: 200 } }
+  const markerMiddle = (score: number) => ({ label: "Marker", score, box: { x: 290, y: 170, w: 60, h: 140 } })
+  it("names the marker in the middle, not the brighter-scoring lamp in the corner", () => {
+    expect(decide([lampCorner, markerMiddle(0.4)], D, V)).toMatchObject({ kind: "name", word: "marker" })
+  })
+  it("does not name the lamp while a weak marker sits in the middle: keeps looking", () => {
+    expect(decide([lampCorner, markerMiddle(0.2)], D, { ...V, room: [lampCorner.box] })).toEqual({ kind: "none" })
+    expect(bestGuess([lampCorner, markerMiddle(0.2)], D, { ...V, room: [lampCorner.box] })?.word).toBe("marker")
+  })
+  it("names a lamp you point at (in the middle), even if it was there from the start", () => {
+    const lampMiddle = { label: "Lamp", score: 0.6, box: { x: 250, y: 120, w: 140, h: 240 } }
+    expect(decide([lampMiddle], D, { ...V, room: [lampMiddle.box] })).toMatchObject({ kind: "name", word: "lamp" })
+  })
+  it("never names a thing off to the side; the live guess still shows it so the hint can say 'middle'", () => {
+    expect(decide([lampCorner], D, V)).toEqual({ kind: "none" })
+    expect(bestGuess([lampCorner], D, V)?.word).toBe("lamp")
+    expect(hintFor(bestGuess([lampCorner], D, V), 640, 480, false, D, 0)).toBe("middle")
+  })
+  it("a tapped spot wins over everything else", () => {
+    const cup = { label: "Cup", score: 0.9, box: { x: 280, y: 180, w: 80, h: 100 } }
+    expect(decide([cup, lampCorner], D, { ...V, lock: { x: 470, y: 10, w: 150, h: 230 } })).toMatchObject({ kind: "name", word: "lamp" })
+    expect(decide([cup], D, { ...V, lock: { x: 470, y: 10, w: 150, h: 230 } })).toEqual({ kind: "none" })
+  })
+  it("asks only between words for the same thing", () => {
+    const d = decide([{ label: "Marker", score: 0.3, box: { x: 290, y: 170, w: 60, h: 140 } }, { label: "Pen/Pencil", score: 0.25, box: { x: 292, y: 172, w: 58, h: 136 } }, { label: "Cup", score: 0.29, box: { x: 10, y: 10, w: 80, h: 80 } }], D, V)
+    expect(d).toMatchObject({ kind: "ask", words: ["marker", "pen", "pencil"] })
+  })
+  it("iou", () => {
+    expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 0, y: 0, w: 10, h: 10 })).toBe(1)
+    expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 20, y: 0, w: 10, h: 10 })).toBe(0)
   })
 })

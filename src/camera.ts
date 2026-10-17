@@ -11,7 +11,7 @@ import { currentEpoch, cancelled } from "./epoch"
 import { saveSession, savePhrase, listPhrases } from "./db"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
-import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, surePercent, hintFor, type Decision, type Box, type Hint } from "./camlogic"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, type Decision, type Box, type Hint, type Cand } from "./camlogic"
 import { padOut, unpadBox, meanLight } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 
@@ -80,7 +80,33 @@ async function look() {
   const hintText = h("span", {}, "")
   const hintEl = h("p", { class: "cam-hint", hidden: true }, hintIc, hintText)
   hintEl.setAttribute("aria-live", "polite")
-  status.replaceWith(meter, hintEl)
+  // Tap to choose: tapping the picture makes the app look only at that spot (and follow the thing there).
+  const lockBox = h("div", { class: "box lock", hidden: true })
+  wrap.append(lockBox)
+  const tapNote = h("p", { class: "cam-note tap-note" }, "Wrong thing? Tap the one you mean.")
+  const unlock = button("Look everywhere", () => setLock(null), "btn quiet small", "✖")
+  unlock.hidden = true
+  status.replaceWith(meter, hintEl, tapNote, unlock)
+  let lock: Box | null = null
+  let lastCands: Cand[] = []
+  const setLock = (b: Box | null) => {
+    lock = b
+    unlock.hidden = !b
+    lockBox.hidden = !b
+    tapNote.textContent = b ? "Looking only where you tapped." : "Wrong thing? Tap the one you mean."
+    for (const hi of histories) hi.length = 0 // a new target: start agreeing again
+    for (const bx of boxes) bx.length = 0
+  }
+  video.addEventListener("click", (e) => {
+    const r = video.getBoundingClientRect()
+    const vw = video.videoWidth, vh = video.videoHeight
+    if (!vw || !r.width) return
+    const x = ((e.clientX - r.left) / r.width) * vw, y = ((e.clientY - r.top) / r.height) * vh
+    // The smallest guess under the finger, else a spot around it (40% of the picture).
+    const under = lastCands.filter((c) => x >= c.box.x && x <= c.box.x + c.box.w && y >= c.box.y && y <= c.box.y + c.box.h)
+      .sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]
+    setLock(under ? under.box : { x: x - vw * 0.2, y: y - vh * 0.2, w: vw * 0.4, h: vh * 0.4 })
+  })
 
   // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
   // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
@@ -89,8 +115,10 @@ async function look() {
   // A third history holds every look, so a plain look and a padded look that agree also count.
   const histories: (string | null)[][] = [[], [], []]
   const boxes: Box[][] = [[], [], []]
+  // The room: what was already there in the first looks (a lamp, a TV). It loses to a thing that shows up later.
+  const room: Box[] = []
   const started = performance.now()
-  let shownHint: Hint | null = null, lastSaid = 0, n = 0, msAvg = 0
+  let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
     if (video.readyState < 2) continue
@@ -102,8 +130,11 @@ async function look() {
     try {
       let dets = await finder.detect(padded ? padOut(video) : video, vw, vh)
       if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, vw, vh) }))
-      d = decide(dets, finder.settings)
-      guess = bestGuess(dets, finder.settings)
+      if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
+      const view = { w: vw, h: vh, room, lock }
+      d = decide(dets, finder.settings, view)
+      guess = bestGuess(dets, finder.settings, view)
+      lastCands = candidates(dets, finder.settings)
     } catch { /* one bad frame: keep looking */ }
     if (cancelled(ep2)) break
     msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
@@ -131,6 +162,11 @@ async function look() {
       Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
     }
     liveBox.hidden = !guess
+    if (lock && guess) lock = grow(guess.box, 1.3, vw, vh) // follow the tapped thing as it moves
+    if (lock) {
+      const p = boxPercent(lock, vw, vh)
+      Object.assign(lockBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+    }
 
     // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
     const hint = hintFor(guess, vw, vh, isDark(video), finder.settings, performance.now() - started)
@@ -146,6 +182,15 @@ async function look() {
     }
   }
   stop()
+}
+
+/** How many first looks count as "the room". */
+const ROOM_LOOKS = 3
+
+/** A box made bigger around its middle, kept inside the picture. */
+function grow(b: Box, k: number, w: number, h: number): Box {
+  const x = Math.max(0, b.x - (b.w * (k - 1)) / 2), y = Math.max(0, b.y - (b.h * (k - 1)) / 2)
+  return { x, y, w: Math.min(w - x, b.w * k), h: Math.min(h - y, b.h * k) }
 }
 
 /** The hints shown (and the short ones spoken) while the camera looks. */
