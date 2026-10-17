@@ -12,7 +12,9 @@ no helper needed. (Name it and Sing it needed a helper and were removed on 2026-
   inside the page looks at the picture. While it looks, the screen shows its best guess, how sure
   it is (a bar: 100% means sure enough to name it), a dashed box where the thing is, and one hint
   ("Move it closer", "Move it to the middle", "Move it back a little", "Turn on a light"), also
-  spoken. When it is sure for two looks in a row, the picture freezes with "What is this?". The
+  spoken. It only names a thing in the middle of the picture, so a lamp or TV behind the person is not named
+  instead of what they hold up; tapping the picture makes it look only at that spot ("Look everywhere" undoes it).
+  When it is sure for two looks in a row, the picture freezes with "What is this?". The
   person tries to say it, taps **Hear it** to hear and see the word, and says for themselves whether
   they got it. When the finder is not sure, or the thing could be two words ("pen or pencil?"),
   Hear it first asks "Which one is it?". **The app does not listen; the rating is the person's own.**
