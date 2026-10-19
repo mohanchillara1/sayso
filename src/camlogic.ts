@@ -213,7 +213,7 @@ export function candidates(dets: Det[], s: Settings, v?: View): Cand[] {
   return dets
     .map((d) => ({ ...d, word: wordFor(d.label) }))
     .filter((d): d is Cand => d.word !== null && !s.blocked.includes(d.word))
-    .filter((d) => !v || v.lock || !WORN.has(d.word) || !onPerson(d.box, dets))
+    .filter((d) => !v || v.lock || v.area || !WORN.has(d.word) || !onPerson(d.box, dets)) // with the square, whatever is in it is named, glasses too (dad, 2026-10-19)
     .sort((a, b) => b.score - a.score)
 }
 

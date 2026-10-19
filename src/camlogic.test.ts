@@ -161,6 +161,7 @@ describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)
     expect(decide([face, glasses, pen], D, V)).toMatchObject({ kind: "ask", words: ["pen", "pencil"] })
     expect(decide([glasses], D, V)).toMatchObject({ kind: "name", word: "glasses" }) // on their own: named
     expect(decide([face, glasses], D, { ...V, lock: glasses.box })).toMatchObject({ kind: "name", word: "glasses" }) // tapped: named
+    expect(decide([face, glasses], D, { ...V, area: { x: 80, y: 0, w: 480, h: 480 } })).toMatchObject({ kind: "name", word: "glasses" }) // in the square: named
   })
   it("a weak pen is still asked about, with its own words (askFor)", () => {
     const P: Settings = { ...D, askFor: { pen: 0.18 } }
