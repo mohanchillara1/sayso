@@ -2,7 +2,7 @@
 
 | Name | Version | Use | Licence | Source |
 |---|---|---|---|---|
-| @fontsource/bricolage-grotesque | 5.3.0 | Heading font (self-hosted) | SIL OFL 1.1 | https://fontsource.org/fonts/bricolage-grotesque |
+| @fontsource/lexend | 5.3.0 | Heading font (self-hosted) | SIL OFL 1.1 | https://fontsource.org/fonts/lexend |
 | @fontsource/atkinson-hyperlegible | 5.3.0 | Text font (self-hosted) | SIL OFL 1.1 | https://fontsource.org/fonts/atkinson-hyperlegible |
 | @mediapipe/tasks-vision | 1.1.0 | Object finder runtime for Point and name (WASM files copied into the site at build time) | Apache-2.0 | https://www.npmjs.com/package/@mediapipe/tasks-vision |
 | onnxruntime-web | 1.30.0 | Runs the D-FINE model in the browser (WebGPU); Vite copies its WASM file into the build | MIT | https://www.npmjs.com/package/onnxruntime-web |

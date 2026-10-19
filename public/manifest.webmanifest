@@ -4,6 +4,6 @@
   "description": "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f5eedf",
-  "theme_color": "#f5eedf"
+  "background_color": "#f6f1e8",
+  "theme_color": "#f6f1e8"
 }

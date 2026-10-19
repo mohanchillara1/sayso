@@ -66,9 +66,28 @@ npm test         # unit tests (vitest)
 - `scripts/eval/`: how the finders were measured on licensed photos.
 
 ## Look
-Flat colour fields (cobalt for Hear it, find it, ink for Point and name, yellow for "now"), thick
-outlines, Bricolage Grotesque for headings and Atkinson Hyperlegible (made for low-vision
-readers) for text, both bundled in the app. Buttons are 56px or bigger, and text is never under 15px.
+Calm and plain (changed 2026-10-18): one warm light background on every screen, white cards,
+one green for the main button, a line picture next to every button's words, and only a short fade
+between screens (none with "reduce motion"). Text is 20px with 1.5 line spacing and never under
+17px; buttons are 56px or taller. Headings are Lexend, text is Atkinson Hyperlegible (made for
+low-vision readers); both are bundled in the app, so it works offline.
+
+What we followed, and where it comes from:
+- Plain sans-serif letters, lower case, not capitals. People with aphasia understood more text in a
+  sans-serif font and in lower case ([Wilson & Read 2016](https://pubmed.ncbi.nlm.nih.gov/26611362/)).
+- Big text and space between lines: 14 pt and 1.5 line spacing were the most chosen by 40 people
+  with aphasia, and Verdana was the font most chosen
+  ([Rose et al. 2012](https://pubmed.ncbi.nlm.nih.gov/22136650/)). Lexend has wide, open letters like Verdana's
+  and is free to bundle (Verdana needs a paid licence for that).
+- Pictures with words: icons with labels, photos or drawings that show the meaning
+  ([GOV.UK, 2019](https://userresearch.blog.gov.uk/2019/08/30/designing-and-researching-with-people-with-aphasia/);
+  [Giummarra et al. 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12020066/)).
+- Little text on a screen, a clear layout, the same layout everywhere, and no pop-ups (same two sources).
+- The person sets the pace: no time limits ([GOV.UK, 2019](https://userresearch.blog.gov.uk/2019/08/30/designing-and-researching-with-people-with-aphasia/)).
+- Movement can be turned off ([WCAG 2.3.3](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html)).
+
+Until 2026-10-18 the app used flat cobalt and black screens, thick outlines and Bricolage
+Grotesque headings; that version is in the git history.
 
 ## Status
 Prototype. See `AI-USAGE.md`: all of this code was written by an AI model (Claude). The students have

@@ -3,16 +3,20 @@
 // removed on 2026-10-15; they are in the git history.)
 // Plain DOM, no framework, so every line is easy to read and rewrite.
 // Screens here: first-run note, home, word list, add/edit a word, progress, settings.
-import "@fontsource/bricolage-grotesque/800.css"
+// Headings in Lexend (wide, open letters, normal spacing), the rest in Atkinson Hyperlegible.
+// Both are served from this website, so the app works offline. Why these: README, "Look".
+import "@fontsource/lexend/500.css"
+import "@fontsource/lexend/600.css"
 import "@fontsource/atkinson-hyperlegible/400.css"
 import "@fontsource/atkinson-hyperlegible/700.css"
 import "./style.css"
 import { prepare } from "./text"
 import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase } from "./db"
-import { h, button, show, shrinkPhoto, guard, prompt, picture, DISCLAIMER } from "./ui"
+import { h, button, show, shrinkPhoto, guard, prompt, picture, icon, DISCLAIMER } from "./ui"
 import { findPick } from "./find"
 import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
+import { loadingScreen } from "./loading"
 import { STARTER, missingStarters } from "./starter"
 import { voices, currentVoice, chooseVoice, onVoices, speak } from "./speak"
 
@@ -41,7 +45,7 @@ export async function homeScreen() {
   show("home", null,
     prompt("What do you want to practice?", "p", "hello-row"),
     h("div", { class: "modes" },
-      modeTile("find", "👂", "Hear it, find it", "The phone says a word. Tap the picture.", () => void findPick()),
+      modeTile("find", "🔊", "Hear it, find it", "The phone says a word. Tap the picture.", () => void findPick()),
       modeTile("cam", "📷", "Point and name", "Point the camera at a thing. Say what it is.", () => void cameraScreen()),
     ),
     h("nav", { class: "links" },
@@ -53,9 +57,9 @@ export async function homeScreen() {
   warmFinder()
 }
 
-function modeTile(cls: string, icon: string, title: string, about: string, go: () => void) {
+function modeTile(cls: string, ic: string, title: string, about: string, go: () => void) {
   return h("button", { class: `mode ${cls}`, type: "button", onclick: guard(go) },
-    h("b", {}, h("span", { class: "mode-ic", ariaHidden: "true" }, icon), " ", title), h("span", {}, about), h("i", {}, "→"))
+    icon(ic, "mode-ic"), h("span", { class: "mode-text" }, h("b", {}, title), h("span", {}, about)), icon("→", "mode-go"))
 }
 
 /** Adds the starter words (with built-in pictures) that are not in the list yet. */
@@ -227,8 +231,8 @@ async function boot() {
   try { void navigator.storage?.persist?.() } catch { /* not supported */ }
   let acked = false
   try { acked = localStorage.getItem(ACK_KEY) === "1" } catch { /* ignore */ }
-  if (acked) void homeScreen()
-  else noteScreen()
+  // The loading screen gets the object finder ready first, then hands over.
+  loadingScreen(() => { if (acked) void homeScreen(); else noteScreen() })
 }
 void boot()
 

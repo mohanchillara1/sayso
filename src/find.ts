@@ -3,7 +3,7 @@
 // which word it said), so nobody has to judge. Two wrong taps and it shows the
 // right one. Words show their photo, else their built-in picture, else the written word.
 // First time, with no words yet, one tap adds the everyday starter words.
-import { h, button, show, guard, prompt, picture } from "./ui"
+import { h, button, show, guard, prompt, picture, icon } from "./ui"
 import { listPhrases, saveSession, type SavedPhrase } from "./db"
 import { homeScreen, wordsScreen, addStarters } from "./main"
 import { STARTER } from "./starter"
@@ -21,7 +21,7 @@ export async function findPick() {
     h("h2", {}, "Hear it, find it"),
     h("div", { class: "panel" },
       prompt("The phone says a word. Tap the picture that matches.", "p"),
-      h("p", {}, "The app knows which word it said, so it checks for you. Turn the sound up 🔊."),
+      h("p", {}, "The app knows which word it said, so it checks for you. Turn the sound up."),
       !canSpeak() ? h("p", { class: "warn" }, "This browser cannot speak words, so this mode will not work here.") : "",
       enough ? "" : h("p", {}, `No words yet. Start with ${STARTER.length} everyday words with pictures.`),
     ),
@@ -144,7 +144,7 @@ function runFind(round: Item[], all: Item[]) {
 
 /** The speaker next to "Which one is it?" says the word again: that is the question here. */
 function speakerBtn(word: string) {
-  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void speak(word)) }, "🔊")
+  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void speak(word)) }, icon("🔊"))
   b.setAttribute("aria-label", "Hear the word again")
   return b
 }
