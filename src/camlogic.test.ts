@@ -162,6 +162,11 @@ describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)
     expect(decide([glasses], D, V)).toMatchObject({ kind: "name", word: "glasses" }) // on their own: named
     expect(decide([face, glasses], D, { ...V, lock: glasses.box })).toMatchObject({ kind: "name", word: "glasses" }) // tapped: named
   })
+  it("a weak pen is still asked about, with its own words (askFor)", () => {
+    const P: Settings = { ...D, askFor: { pen: 0.18 } }
+    expect(decide([{ label: "Pen/Pencil", score: 0.2, box: { x: 200, y: 200, w: 240, h: 60 } }], P, V)).toMatchObject({ kind: "ask", words: ["pen", "pencil"] })
+    expect(decide([{ label: "Cup", score: 0.2, box: { x: 280, y: 180, w: 80, h: 100 } }], P, V)).toEqual({ kind: "none" })
+  })
   it("iou", () => {
     expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 0, y: 0, w: 10, h: 10 })).toBe(1)
     expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 20, y: 0, w: 10, h: 10 })).toBe(0)

@@ -26,7 +26,8 @@ const asset = (path: string) => new URL(path, document.baseURI).href
 // names or questions on any of the 36 plain-texture photos.
 // D-FINE retuned 2026-10-13 on the same 75 photos with a padded second look (padLook);
 // the 46 held-out photos went from 22 right / 4 wrong to 23 right / 3 wrong, still no textures.
-const DFINE: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "laptop"], steady: 2, padLook: true }
+// Pens and markers asked about from 0.18 (2026-10-19): 7 of 60 pen photos instead of 3, and no other photo of 271 asked "pen?".
+const DFINE: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "laptop"], steady: 2, padLook: true, askFor: { pen: 0.18, marker: 0.18 } }
 // MediaPipe raised 2026-10-13 after measuring at phone-camera size (640 px), where both named
 // some textures (wood grain -> "clock" 0.71). Padded looks made them worse, so they do not use it.
 const MP_GPU: Settings = { nameAt: 0.6, askAt: 0.6, blocked: ["keyboard", "cake"], steady: 3 }

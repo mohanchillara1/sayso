@@ -11,7 +11,7 @@ import { currentEpoch, cancelled } from "./epoch"
 import { saveSession, savePhrase, listPhrases } from "./db"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
-import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, type Decision, type Box, type Hint, type Cand } from "./camlogic"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
 import { padOut, unpadBox, meanLight } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 
@@ -154,7 +154,7 @@ async function look() {
     // Show the guess and how sure the finder is (100% = sure enough to name it).
     const pc = guess ? surePercent(guess.score, finder.settings) : 0
     // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
-    guessWord.textContent = !guess ? "nothing yet" : guess.score < finder.settings.askAt ? "not sure yet" : guess.word
+    guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
     fill.style.width = `${pc}%`
     pct.textContent = `${pc}%`
     meter.setAttribute("aria-valuenow", String(pc))

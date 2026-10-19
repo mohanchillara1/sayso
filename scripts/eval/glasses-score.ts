@@ -10,7 +10,7 @@ type Raw = { photos: { file: string; dets: Record<string, Record<string, { label
 type Entry = { file: string; case: string; expect: string[]; never: string[]; start?: string }
 const raw = JSON.parse(readFileSync(process.argv[2], "utf8")) as Raw
 const man = JSON.parse(readFileSync(join(process.argv[3], "manifest.json"), "utf8")) as Entry[]
-const s: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "laptop"], steady: 2, padLook: true } // D-FINE, as in src/finder.ts
+const s: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "laptop"], steady: 2, padLook: true, askFor: { pen: 0.18, marker: 0.18 } } // D-FINE, as in src/finder.ts
 const dets = (file: string, v: string): Det[] =>
   raw.photos.find((p) => p.file === file)!.dets["dfine-webgpu"][v].map((d) => ({ label: d.label, score: d.score, box: { x: d.box[0], y: d.box[1], w: d.box[2], h: d.box[3] } }))
 const show = (d: Decision) => (d.kind === "none" ? "not sure" : d.kind === "name" ? d.word : `? ${d.words.join("/")}`)

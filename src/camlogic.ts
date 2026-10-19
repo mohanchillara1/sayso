@@ -139,12 +139,17 @@ export type Settings = {
    * Helps when something is held close and fills the picture. Measured 2026-10-13.
    */
   padLook?: boolean
+  /** Lower "which one is it?" levels for words this finder only ever finds weakly (pens: 0.10–0.36). */
+  askFor?: Record<string, number>
 }
 
 export type Decision =
   | { kind: "name"; word: string; box: Box }
   | { kind: "ask"; words: string[]; box: Box }
   | { kind: "none" }
+
+/** How sure the finder must be to ask about this word. */
+export const askLevel = (word: string, s: Settings) => Math.min(s.askAt, s.askFor?.[word] ?? s.askAt)
 
 /** The word we say for a finder's class name, or null if it is not a home word. */
 export const wordFor = (label: string): string | null => WORDS[label.toLowerCase()] ?? null
@@ -256,11 +261,11 @@ export function decide(dets: Det[], s: Settings, v?: View): Decision {
   if (!top) return { kind: "none" }
   const either = EITHER[top.label.toLowerCase()]
   if (top.score >= s.nameAt) return either ? { kind: "ask", words: either, box: top.box } : { kind: "name", word: top.word, box: top.box }
-  if (top.score < s.askAt) return { kind: "none" }
+  if (top.score < askLevel(top.word, s)) return { kind: "none" }
   // Not sure: offer the words the finder was weighing for this same thing (boxes that overlap it).
   const words: string[] = []
   for (const d of all) {
-    if (d.score < s.askAt * 0.75 || (d !== top && iou(d.box, top.box) < 0.3)) continue
+    if (d !== top && (d.score < askLevel(d.word, s) * 0.75 || iou(d.box, top.box) < 0.3)) continue // the chosen thing's own words always
     for (const w of EITHER[d.label.toLowerCase()] ?? [d.word]) if (!words.includes(w)) words.push(w)
   }
   return { kind: "ask", words: words.slice(0, 3), box: top.box }
