@@ -83,6 +83,17 @@ export const WORDS: Record<string, string> = {
   // pets and helpers
   "cat": "cat", "dog": "dog", "goldfish": "fish", "parrot": "parrot", "rabbit": "rabbit", "wheelchair": "wheelchair",
   "stroller": "pram",
+  // MobileCLIP only: no detector class. Each is named only by the MobileCLIP finder (public/models/clip_words.*).
+  // kitchen
+  "colander": "colander", "corkscrew": "corkscrew", "frying pan": "frying pan", "grater": "grater", "ladle": "ladle", "peeler": "peeler", "rolling pin": "rolling pin", "salt shaker": "salt shaker", "spatula": "spatula", "straw": "straw", "whisk": "whisk", "can opener": "can opener", "lunch box": "lunch box",
+  // bathroom and health
+  "deodorant": "deodorant", "nail clippers": "nail clippers", "nail polish": "nail polish", "perfume": "perfume", "pill bottle": "pill bottle", "pills": "pills", "razor": "razor", "shampoo": "shampoo", "thermometer": "thermometer", "toothpaste": "toothpaste", "cotton swabs": "cotton swabs", "hearing aid": "hearing aid",
+  // clothes
+  "dress": "dress", "earrings": "earrings", "socks": "socks", "sweater": "sweater", "shirt": "shirt",
+  // around the house
+  "battery": "battery", "clothes peg": "clothes peg", "coin": "coin", "credit card": "credit card", "dice": "dice", "doll": "doll", "envelope": "envelope", "iron": "iron", "magazine": "magazine", "matches": "matches", "money": "money", "newspaper": "newspaper", "padlock": "padlock", "paper clip": "paper clip", "puzzle": "puzzle", "saw": "saw", "screw": "screw", "sharpener": "sharpener", "toy car": "toy car", "watering can": "watering can", "dustpan": "dustpan", "cable": "cable", "flashlight": "flashlight", "wrench": "wrench", "calendar": "calendar", "light bulb": "light bulb",
+  // food and drink
+  "cereal": "cereal", "crackers": "crackers", "honey": "honey", "jam": "jam", "juice": "juice", "sugar": "sugar", "tea bag": "tea bag", "butter": "butter",
 }
 
 /**

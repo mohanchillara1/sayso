@@ -173,3 +173,18 @@ describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)
     expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 20, y: 0, w: 10, h: 10 })).toBe(0)
   })
 })
+
+describe("MobileCLIP word table", () => {
+  it("has a row for every word the app can say from it, and each row is a home word", async () => {
+    const { readFileSync } = await import("node:fs")
+    const meta = JSON.parse(readFileSync("public/models/clip_words.json", "utf8")) as { dim: number; rows: { word: string | null; key: string | null }[] }
+    const bin = readFileSync("public/models/clip_words.bin")
+    expect(bin.length).toBe(meta.rows.length * meta.dim * 4)
+    for (const r of meta.rows) if (r.key) expect(wordFor(r.key)).toBe(r.word)
+    const said = new Set(meta.rows.map((r) => r.word))
+    for (const w of ["spatula", "toothpaste", "envelope", "honey", "dice", "pen", "pencil", "glasses", "watch", "cup"]) expect(said.has(w)).toBe(true)
+  })
+  it("keeps the words that were dropped because they stole pens, pencils, glasses or cups out", () => {
+    for (const w of ["mug", "tray", "sunglasses", "crayon", "notebook", "glue", "jacket", "scarf"]) expect(Object.values(WORDS)).not.toContain(w)
+  })
+})
