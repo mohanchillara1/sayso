@@ -64,6 +64,27 @@ for (const s of sizes) {
   await shot(`${s.tag}-6-camera-live`)
 }
 report.serviceWorker = await ev(`navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then((r) => r.map((x) => x.active?.scriptURL ?? "installing")) : "none"`)
+if (process.argv.includes("--offline")) {
+  // Real offline test: say the app is ready, wait for the person running this to stop the web server,
+  // then open the app again with nothing serving it.
+  report.swReady = await ev(`navigator.serviceWorker.ready.then((r) => r.active.scriptURL)`)
+  report.cachesBefore = await ev(`caches.keys()`)
+  writeFileSync(join(OUT, "sw-ready"), "1")
+  console.log("sw ready: stop the server now")
+  const { existsSync } = await import("node:fs")
+  for (let i = 0; i < 240 && !existsSync(join(OUT, "server-stopped")); i++) await sleep(500)
+  report.serverUpDuringOffline = await fetch(APP).then(() => true, () => false)
+  await send("Page.navigate", { url: APP }); await sleep(1500)
+  report.offlineLoadingGone = await waitFor(`!document.querySelector(".loading")`, 60000)
+  await sleep(800)
+  await shot("offline-home")
+  report.offlineHome = await ev(`document.body.innerText.slice(0, 120)`)
+  await click("Point and name"); await sleep(600)
+  await click("Start the camera")
+  report.offlineFinder = (await waitFor(`!!document.querySelector(".cam-wrap")?.dataset.finder`, 60000)) ? await ev(`document.querySelector(".cam-wrap").dataset.finder`) : "none in 60 s"
+  await sleep(1000)
+  await shot("offline-camera")
+}
 report.manifest = await send("Page.getAppManifest").then((r) => ({ url: r.result?.url, errors: r.result?.errors, parsed: r.result?.data ? JSON.parse(r.result.data) : null }))
 report.installability = await send("Page.getInstallabilityErrors").then((r) => r.result?.installabilityErrors ?? r.error)
 report.errors = errors

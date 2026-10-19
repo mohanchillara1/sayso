@@ -229,6 +229,10 @@ async function backup(msg: HTMLElement) {
 // ---------- boot ----------
 async function boot() {
   try { void navigator.storage?.persist?.() } catch { /* not supported */ }
+  // The service worker (pwa/sw.js) keeps the app's files so it opens offline and can be installed
+  // from the browser ("Add to Home Screen"). Only in the built app: under `npm run dev` it would
+  // keep serving old copies of the files being edited.
+  if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* the app still works online */ })
   let acked = false
   try { acked = localStorage.getItem(ACK_KEY) === "1" } catch { /* ignore */ }
   // The loading screen gets the object finder ready first, then hands over.
