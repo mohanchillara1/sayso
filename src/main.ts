@@ -39,7 +39,7 @@ function noteScreen() {
 // ---------- home ----------
 export async function homeScreen() {
   show("home", null,
-    prompt("What do you want to practise?", "p", "hello-row"),
+    prompt("What do you want to practice?", "p", "hello-row"),
     h("div", { class: "modes" },
       modeTile("find", "👂", "Hear it, find it", "The phone says a word. Tap the picture.", () => void findPick()),
       modeTile("cam", "📷", "Point and name", "Point the camera at a thing. Say what it is.", () => void cameraScreen()),
@@ -153,7 +153,7 @@ async function progressScreen() {
         `${s.mode === "find" ? "Hear it, find it" : "Point and name"} · ${s.phraseText}`,
         h("small", {}, `${new Date(s.at).toLocaleString()} · ${detail(s)}`),
       )))) : h("div", { class: "panel empty" }, h("p", { class: "say" }, "No sessions yet.")),
-    h("p", { class: "soft" }, "What you practised, newest first. You can show it to your speech-language pathologist. The app does not judge speech."),
+    h("p", { class: "soft" }, "What you practiced, newest first. You can show it to your speech-language pathologist. The app does not judge speech."),
   )
 }
 

@@ -2,7 +2,7 @@
 
 Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.
 
-For people with aphasia, to practise naming everyday things on their own. One word list, two modes,
+For people with aphasia, to practice naming everyday things on their own. One word list, two modes,
 no helper needed. (Name it and Sing it needed a helper and were removed on 2026-10-15; they are in the git history.)
 
 - **Hear it, find it**: the phone says a word from the list; the person taps the matching

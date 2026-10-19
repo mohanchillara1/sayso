@@ -233,8 +233,8 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
       status.textContent = "Could not save. Press again to try again."
       return
     }
-    status.textContent = r === "got" ? "Saved: you got it." : "Saved. Keep practising this one."
-    sayPrompt(r === "got" ? "Well done." : "OK. Keep practising.")
+    status.textContent = r === "got" ? "Saved: you got it." : "Saved. Keep practicing this one."
+    sayPrompt(r === "got" ? "Well done." : "OK. Keep practicing.")
     dock.replaceChildren(
       button("Save to my words", () => void keep(), "btn", "＋"),
       button("Look again", () => void look(), "btn go", "📷"),

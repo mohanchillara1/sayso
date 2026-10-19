@@ -133,7 +133,7 @@ function runFind(round: Item[], all: Item[]) {
       h("div", { class: "panel" },
         prompt(`Found it first time: ${s.first} of ${results.length}.`, "p"),
         s.later ? h("p", {}, `Found it on the second try: ${s.later}.`) : "",
-        s.shown ? h("p", {}, `The app showed you: ${s.shown}. Those are good ones to practise again.`) : "",
+        s.shown ? h("p", {}, `The app showed you: ${s.shown}. Those are good ones to practice again.`) : "",
       ),
       h("div", { class: "dock two" }, button("Home", () => void homeScreen(), "btn", "🏠"), button("Again", () => void findPick(), "btn go", "↻")),
     )
