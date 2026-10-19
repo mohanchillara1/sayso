@@ -1,3 +1,6 @@
+// Turns every app word into MobileCLIP-S0 numbers (its text half), once, offline. Not part of the app.
+// Run from a folder with @huggingface/transformers 4.3.1 installed (it is not an app dependency):
+//   node clip-embed.mjs <words.json from camlogic WORDS> public/models
 // node embed.mjs <words.json> <out dir>: text embeddings for every app word (+ "nothing" prompts), MobileCLIP-S0 text tower.
 import { AutoTokenizer, CLIPTextModelWithProjection } from "@huggingface/transformers"
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
