@@ -173,7 +173,7 @@ async function look() {
       const p = boxPercent(guess.box, vw, vh)
       Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
     }
-    liveBox.hidden = !guess
+    liveBox.hidden = !guess || !!finder.settings.whole // the square already shows where it looks
     if (lock && guess) lock = grow(guess.box, 1.3, vw, vh) // follow the tapped thing as it moves
     if (lock) {
       const p = boxPercent(lock, vw, vh)
@@ -183,7 +183,9 @@ async function look() {
     // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
     // Hints are about where the thing sits in the square, not in the whole picture.
     const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
-    const hint = hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
+    const hint = finder.settings.whole
+      ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show") // no box: nothing to say about where
+      : hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
     if (hint !== shownHint) {
       shownHint = hint
       hintIc.textContent = HINTS[hint].icon

@@ -71,7 +71,7 @@ export const WORDS: Record<string, string> = {
   "microphone": "microphone", "projector": "projector", "extension cord": "extension cord", "converter": "adapter",
   "calculator": "calculator", "cd": "CD",
   // paper, pens and tools
-  "book": "book", "pen/pencil": "pen", "marker": "marker", "notepaper": "note", "folder": "folder", "tape": "tape",
+  "book": "book", "pen/pencil": "pen", "pen": "pen", "pencil": "pencil", "marker": "marker", "notepaper": "note", "folder": "folder", "tape": "tape",
   "stapler": "stapler", "scissors": "scissors", "eraser": "eraser", "pencil case": "pencil case",
   "tape measure/ruler": "ruler", "paint brush": "paintbrush", "key": "key", "hammer": "hammer", "screwdriver": "screwdriver",
   "pliers": "pliers", "electric drill": "drill", "shovel": "shovel", "ladder": "ladder",
@@ -139,6 +139,8 @@ export type Settings = {
    * Helps when something is held close and fills the picture. Measured 2026-10-13.
    */
   padLook?: boolean
+  /** The finder names the whole square (MobileCLIP); it does not say where the thing is. */
+  whole?: boolean
   /** Lower "which one is it?" levels for words this finder only ever finds weakly (pens: 0.10–0.36). */
   askFor?: Record<string, number>
 }

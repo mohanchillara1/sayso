@@ -3,6 +3,9 @@
 // Vite puts in the build), never a cloud service.
 //
 // We try them best-first and keep the first one that passes a self-test:
+//  0. MobileCLIP-S0 on the square (since 2026-10-19): it does not look for things, it says which
+//     of our words the square shows. Named the watch, pens and held glasses that D-FINE missed.
+//     Needs WebGPU. Weights: Apple research-only licence (fine for this prototype, not for a product).
 //  1. D-FINE small (Objects365, 366 kinds of object) on the phone's GPU through WebGPU.
 //     Found the most objects in our test and named no plain textures. Needs WebGPU.
 //  2. MediaPipe EfficientDet-Lite0 (COCO, 80 kinds), float16, on the GPU through WebGL.
@@ -31,6 +34,9 @@ const DFINE: Settings = { nameAt: 0.325, askAt: 0.275, blocked: ["keyboard", "la
 // MediaPipe raised 2026-10-13 after measuring at phone-camera size (640 px), where both named
 // some textures (wood grain -> "clock" 0.71). Padded looks made them worse, so they do not use it.
 const MP_GPU: Settings = { nameAt: 0.6, askAt: 0.6, blocked: ["keyboard", "cake"], steady: 3 }
+// MobileCLIP measured 2026-10-19 on the square crops of 54 + 121 test photos (vault: BUILD — glasses lock fix):
+// name at 0.7, ask at 0.3 named no glasses on a face and 4 of 53 plain textures; smoothed over the last 5 looks.
+const CLIP: Settings = { nameAt: 0.7, askAt: 0.3, blocked: [], steady: 3, whole: true }
 const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
 
 /** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
@@ -61,19 +67,88 @@ let progress: ((part: number) => void) | undefined
 const MODEL_URL = () => asset("models/dfine_s_obj365.onnx")
 const MODEL_CACHE = "sayso-dfine-a61e4cd"
 
-async function modelBytes(onProgress?: (part: number) => void): Promise<ArrayBuffer> {
+const CLIP_URL = () => asset("models/mobileclip_s0_vision_fp16.onnx")
+const CLIP_CACHE = "sayso-mobileclip-757d59c"
+
+async function modelBytes(onProgress?: (part: number) => void, url = MODEL_URL(), cacheName = MODEL_CACHE): Promise<ArrayBuffer> {
   let cache: Cache | undefined
-  try { cache = await caches.open(MODEL_CACHE) } catch { /* no Cache Storage here: just download */ }
-  const hit = await cache?.match(MODEL_URL())
+  try { cache = await caches.open(cacheName) } catch { /* no Cache Storage here: just download */ }
+  const hit = await cache?.match(url)
   if (hit) { onProgress?.(1); return hit.arrayBuffer() }
-  const bytes = await download(MODEL_URL(), onProgress)
-  try { await cache?.put(MODEL_URL(), new Response(bytes.slice(0))) } catch { /* full or blocked: next time downloads again */ }
+  const bytes = await download(url, onProgress)
+  try { await cache?.put(url, new Response(bytes.slice(0))) } catch { /* full or blocked: next time downloads again */ }
   return bytes
 }
 
-/** Is the D-FINE file already on this phone? */
+/** Is the first-choice finder's file already on this phone? */
 async function modelCached(): Promise<boolean> {
-  try { return !!(await (await caches.open(MODEL_CACHE)).match(MODEL_URL())) } catch { return false }
+  try { return !!(await (await caches.open(CLIP_CACHE)).match(CLIP_URL())) } catch { return false }
+}
+
+/**
+ * MobileCLIP-S0's picture half. Our words were turned into numbers once, offline (scripts/clip-embed.mjs,
+ * models/clip_words.*), so only the picture half runs on the phone: square -> 256 x 256 -> numbers ->
+ * how close they are to each word. Some rows are "nothing" ("an empty hand", "a man wearing glasses",
+ * "wood grain"): they take a share so that a face or a table top does not get named.
+ */
+async function clipFinder(): Promise<Finder> {
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
+  if (!gpu || !(await gpu.requestAdapter())) throw new Error("no WebGPU")
+  performance.mark("finder:start")
+  const ort = await import("onnxruntime-web/webgpu")
+  const [session, meta, mat] = await Promise.all([
+    modelBytes((part) => progress?.(part), CLIP_URL(), CLIP_CACHE).then((bytes) => {
+      performance.mark("finder:downloaded")
+      return ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
+    }),
+    fetch(asset("models/clip_words.json")).then((r) => r.json() as Promise<{ dim: number; rows: { word: string | null; key: string | null }[] }>),
+    fetch(asset("models/clip_words.bin")).then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
+  ])
+  performance.mark("finder:session")
+  const SIZE = 256, D = meta.dim, R = meta.rows.length
+  const canvas = document.createElement("canvas")
+  canvas.width = canvas.height = SIZE
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+  const pixels = new Float32Array(3 * SIZE * SIZE)
+  const recent: Float32Array[] = [] // the last few looks, averaged so one odd frame does not decide
+  let lastAt = 0
+  return {
+    name: "MobileCLIP-S0 on the square, WebGPU",
+    short: "MobileCLIP",
+    settings: CLIP,
+    async detect(frame, w, h) {
+      ctx.drawImage(frame, 0, 0, w, h, 0, 0, SIZE, SIZE)
+      const rgba = ctx.getImageData(0, 0, SIZE, SIZE).data
+      const n = SIZE * SIZE
+      for (let i = 0; i < n; i++) {
+        pixels[i] = rgba[i * 4] / 255
+        pixels[i + n] = rgba[i * 4 + 1] / 255
+        pixels[i + 2 * n] = rgba[i * 4 + 2] / 255
+      }
+      const out = await session.run({ pixel_values: new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE]) })
+      const v = out.image_embeds.data as Float32Array
+      let norm = 0
+      for (let j = 0; j < D; j++) norm += v[j] * v[j]
+      norm = Math.sqrt(norm)
+      const p = new Float32Array(R)
+      let top = -Infinity
+      for (let r = 0; r < R; r++) { let s = 0; for (let j = 0; j < D; j++) s += mat[r * D + j] * v[j]; p[r] = (100 * s) / norm; top = Math.max(top, p[r]) }
+      let sum = 0
+      for (let r = 0; r < R; r++) { p[r] = Math.exp(p[r] - top); sum += p[r] }
+      for (let r = 0; r < R; r++) p[r] /= sum
+      const now = performance.now()
+      if (now - lastAt > 1000 || frame instanceof HTMLImageElement) recent.length = 0 // a new look, not the same scene
+      lastAt = now
+      recent.push(p)
+      if (recent.length > 5) recent.shift()
+      const avg = new Float32Array(R)
+      for (const q of recent) for (let r = 0; r < R; r++) avg[r] += q[r] / recent.length
+      // Words only: the "nothing" rows just take their share. Every guess covers the whole square.
+      const dets: Det[] = []
+      meta.rows.forEach((row, r) => { if (row.key && avg[r] >= 0.1) dets.push({ label: row.key, score: avg[r], box: { x: 0, y: 0, w, h } }) })
+      return dets.sort((a, b) => b.score - a.score).slice(0, 3)
+    },
+  }
 }
 
 async function dfineFinder(): Promise<Finder> {
@@ -174,6 +249,7 @@ export async function selfTest(f: Finder): Promise<Finder> {
 
 /** Every finder in the order we try them; exported so the evaluation can test each one. */
 export const FINDERS: { name: string; make: () => Promise<Finder> }[] = [
+  { name: "mobileclip-webgpu", make: () => clipFinder() },
   { name: "dfine-webgpu", make: () => dfineFinder() },
   { name: "mediapipe-gpu", make: () => mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", MP_GPU, "EfficientDet-Lite0 float16, GPU") },
   { name: "mediapipe-cpu", make: () => mediapipeFinder("efficientdet_lite0.tflite", "CPU", MP_CPU, "EfficientDet-Lite0 int8, CPU") },

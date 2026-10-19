@@ -12,6 +12,12 @@ const MODELS = [
     sha256: "372feaa33ac6ba67d7df8589628f6abc395b3c6981c4edc70dfcfe2949751120",
   },
   {
+    // MobileCLIP-S0 picture half, float16 (23 MB). Weights: Apple ML Research licence, research use only.
+    file: "mobileclip_s0_vision_fp16.onnx",
+    url: "https://huggingface.co/Xenova/mobileclip_s0/resolve/757d59c9c6870a76a4b0306f05f5061bca15c39f/onnx/vision_model_fp16.onnx",
+    sha256: "22b1d36ecc6837e8205aee05003440a25e1c1ee0c7e2945dbb9dd597211c59dc",
+  },
+  {
     // MediaPipe EfficientDet-Lite0, float16: the version that works on the GPU.
     file: "efficientdet_lite0_fp16.tflite",
     url: "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/latest/efficientdet_lite0.tflite",
