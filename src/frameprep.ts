@@ -62,3 +62,17 @@ export function unpadBox(b: { x: number; y: number; w: number; h: number }, w: n
   const ox = (w * (1 - k)) / 2, oy = (h * (1 - k)) / 2
   return { x: (b.x - ox) / k, y: (b.y - oy) / k, w: b.w / k, h: b.h / k }
 }
+
+/** The square in the middle of the camera picture that the person puts the thing in (dad, 2026-10-19). */
+export function middleSquare(w: number, h: number, k = 0.7) {
+  const s = Math.round(Math.min(w, h) * k)
+  return { x: Math.round((w - s) / 2), y: Math.round((h - s) / 2), w: s, h: s }
+}
+
+/** Just that part of the picture: the finder looks only there, so it stops naming things around the room. */
+export function cropTo(src: Src, b: { x: number; y: number; w: number; h: number }): HTMLCanvasElement {
+  const c = document.createElement("canvas")
+  c.width = b.w; c.height = b.h
+  c.getContext("2d")!.drawImage(src, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h)
+  return c
+}

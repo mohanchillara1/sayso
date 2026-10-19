@@ -166,6 +166,8 @@ export type View = {
   room?: Box[]
   /** The person tapped a thing: only look there. */
   lock?: Box | null
+  /** The square the person puts the thing in: anything centred inside it counts as in the middle. */
+  area?: Box
 }
 export type Cand = Det & { word: string }
 
@@ -241,6 +243,7 @@ export function inFocus(c: Cand, v?: View): boolean {
   if (!v) return true
   const cx = c.box.x + c.box.w / 2, cy = c.box.y + c.box.h / 2
   if (v.lock) { const L = v.lock; return iou(c.box, L) >= 0.2 || (cx >= L.x && cx <= L.x + L.w && cy >= L.y && cy <= L.y + L.h) }
+  if (v.area) { const A = v.area; return cx >= A.x && cx <= A.x + A.w && cy >= A.y && cy <= A.y + A.h }
   const middle = Math.abs(cx / v.w - 0.5) <= 0.25 && Math.abs(cy / v.h - 0.5) <= 0.25
   const overMiddle = c.box.x <= v.w / 2 && c.box.x + c.box.w >= v.w / 2 && c.box.y <= v.h / 2 && c.box.y + c.box.h >= v.h / 2
   return middle || overMiddle

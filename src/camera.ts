@@ -12,7 +12,7 @@ import { saveSession, savePhrase, listPhrases } from "./db"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
 import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
-import { padOut, unpadBox, meanLight } from "./frameprep"
+import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
@@ -23,7 +23,7 @@ export function cameraScreen() {
   loadFinder(bar.set).catch(() => { /* look() tries again and explains */ })
   show("camera", () => void homeScreen(),
     h("h2", {}, "Point and name"),
-    prompt("Point the camera at one thing: a cup, a chair, a clock. When a yellow box appears, try to say what it is.", "p", "cam-status"),
+    prompt("Hold one thing up to the camera, inside the square. When a yellow box appears, try to say what it is.", "p", "cam-status"),
     h("p", { class: "cam-note" }, NOTE),
     bar.el,
     h("div", { class: "dock" }, button("Start the camera", () => void look(), "btn go", "📷")),
@@ -80,6 +80,9 @@ async function look() {
   const hintText = h("span", {}, "")
   const hintEl = h("p", { class: "cam-hint", hidden: true }, hintIc, hintText)
   hintEl.setAttribute("aria-live", "polite")
+  // The square: the finder looks only inside it (dad, 2026-10-19: it kept jumping to things around the room).
+  const squareEl = h("div", { class: "square", hidden: true }, h("span", { class: "square-tag" }, "Put the thing in the square"))
+  wrap.append(squareEl)
   // Tap to choose: tapping the picture makes the app look only at that spot (and follow the thing there).
   const lockBox = h("div", { class: "box lock", hidden: true })
   wrap.append(lockBox)
@@ -123,15 +126,23 @@ async function look() {
     await new Promise((r) => requestAnimationFrame(r))
     if (video.readyState < 2) continue
     const vw = video.videoWidth, vh = video.videoHeight
+    const sq = middleSquare(vw, vh)
+    if (squareEl.hidden) {
+      const p = boxPercent(sq, vw, vh)
+      Object.assign(squareEl.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+      squareEl.hidden = false
+    }
     const padded = !!finder.settings.padLook && n++ % 2 === 1
     let d: Decision = { kind: "none" }
     let guess: ReturnType<typeof bestGuess> = null
     const t0 = performance.now()
     try {
-      let dets = await finder.detect(padded ? padOut(video) : video, vw, vh)
-      if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, vw, vh) }))
+      const cut = cropTo(video, sq)
+      let dets = await finder.detect(padded ? padOut(cut) : cut, sq.w, sq.h)
+      if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, sq.w, sq.h) }))
+      dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } })) // back to the whole picture
       if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
-      const view = { w: vw, h: vh, room, lock }
+      const view = { w: vw, h: vh, room, lock, area: sq }
       d = decide(dets, finder.settings, view)
       guess = bestGuess(dets, finder.settings, view)
       lastCands = candidates(dets, finder.settings)
@@ -170,7 +181,9 @@ async function look() {
     }
 
     // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
-    const hint = hintFor(guess, vw, vh, isDark(video), finder.settings, performance.now() - started)
+    // Hints are about where the thing sits in the square, not in the whole picture.
+    const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
+    const hint = hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
     if (hint !== shownHint) {
       shownHint = hint
       hintIc.textContent = HINTS[hint].icon
@@ -198,11 +211,11 @@ function grow(b: Box, k: number, w: number, h: number): Box {
 
 /** The hints shown (and the short ones spoken) while the camera looks. */
 const HINTS: Record<Hint, { icon: string; text: string; say?: string }> = {
-  show: { icon: "✋", text: "Hold one thing in front of the camera." },
-  far: { icon: "↔️", text: "Nothing found yet. Hold it in the middle, a little further away.", say: "Move it back a little." },
-  middle: { icon: "🎯", text: "Move it to the middle.", say: "Move it to the middle." },
+  show: { icon: "✋", text: "Put the thing in the square." },
+  far: { icon: "↔️", text: "Nothing found yet. Hold it in the square, a little further away.", say: "Move it back a little." },
+  middle: { icon: "🎯", text: "Move it to the middle of the square.", say: "Move it to the middle." },
   closer: { icon: "🔍", text: "Move it closer.", say: "Move it closer." },
-  back: { icon: "↔️", text: "Move it back a little, so all of it shows.", say: "Move it back a little." },
+  back: { icon: "↔️", text: "Move it back a little, so all of it fits in the square.", say: "Move it back a little." },
   light: { icon: "💡", text: "It is dark here. Turn on a light.", say: "More light, please." },
   still: { icon: "👍", text: "Good. Hold still." },
 }
