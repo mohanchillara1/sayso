@@ -196,7 +196,7 @@ export const WORN = new Set(["glasses", "hat", "tie", "bow tie", "necklace", "wa
 /** Is this box on a person the finder sees (at least 80% of it inside a person's box)? */
 export function onPerson(b: Box, dets: Det[]): boolean {
   return dets.some((p) => {
-    if (p.label.toLowerCase() !== "person" || p.score < 0.3) return false
+    if (p.label.toLowerCase() !== "person" || p.score < 0.25) return false // faces cut off by the edge: person 0.34; glasses on their own: never above 0.20
     const iw = Math.max(0, Math.min(b.x + b.w, p.box.x + p.box.w) - Math.max(b.x, p.box.x))
     const ih = Math.max(0, Math.min(b.y + b.h, p.box.y + p.box.h) - Math.max(b.y, p.box.y))
     return b.w * b.h > 0 && (iw * ih) / (b.w * b.h) >= 0.8
