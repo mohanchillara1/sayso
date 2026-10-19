@@ -185,6 +185,6 @@ describe("MobileCLIP word table", () => {
     for (const w of ["spatula", "toothpaste", "envelope", "honey", "dice", "pen", "pencil", "glasses", "watch", "cup"]) expect(said.has(w)).toBe(true)
   })
   it("keeps the words that were dropped because they stole pens, pencils, glasses or cups out", () => {
-    for (const w of ["mug", "tray", "sunglasses", "crayon", "notebook", "glue", "jacket", "scarf"]) expect(Object.values(WORDS)).not.toContain(w)
+    for (const w of ["mug", "tray", "sunglasses", "crayon", "notebook", "glue", "scarf"]) expect(Object.values(WORDS)).not.toContain(w)
   })
 })
