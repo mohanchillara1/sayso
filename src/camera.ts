@@ -146,14 +146,15 @@ async function look() {
       if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
     }
     const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
-    if (d.kind !== "none" && agreed !== undefined) {
+    if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= WARM_UP_MS) {
       // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
       return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, stop, ep2)
     }
 
     // Show the guess and how sure the finder is (100% = sure enough to name it).
     const pc = guess ? surePercent(guess.score, finder.settings) : 0
-    guessWord.textContent = guess ? guess.word : "nothing yet"
+    // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
+    guessWord.textContent = !guess ? "nothing yet" : guess.score < finder.settings.askAt ? "not sure yet" : guess.word
     fill.style.width = `${pc}%`
     pct.textContent = `${pc}%`
     meter.setAttribute("aria-valuenow", String(pc))
@@ -186,6 +187,8 @@ async function look() {
 
 /** How many first looks count as "the room". */
 const ROOM_LOOKS = 3
+/** Nothing is named in the first moments after the camera opens, while the person lifts the thing up (dad, 2026-10-19). */
+const WARM_UP_MS = 1500
 
 /** A box made bigger around its middle, kept inside the picture. */
 function grow(b: Box, k: number, w: number, h: number): Box {

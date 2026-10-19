@@ -182,11 +182,31 @@ export function iou(a: Box, b: Box): number {
 /** How far a box's middle is from the picture's middle: 0 in the middle, 1 in a corner. */
 const offCentre = (b: Box, v: View) => Math.hypot((b.x + b.w / 2) / v.w - 0.5, (b.y + b.h / 2) / v.h - 0.5) / Math.SQRT1_2
 
-/** The home-word guesses this look (blocked words left out), highest score first. */
-export function candidates(dets: Det[], s: Settings): Cand[] {
+/**
+ * Things people wear. Seen on a person, they are what the person has on, not what they are showing
+ * (dad's test, 2026-10-19: it kept saying "glasses" for the glasses on his face while he held up a pen).
+ */
+export const WORN = new Set(["glasses", "hat", "tie", "bow tie", "necklace", "watch", "mask", "helmet", "headphones", "earbuds", "gloves", "belt", "backpack"])
+
+/** Is this box on a person the finder sees (at least 80% of it inside a person's box)? */
+export function onPerson(b: Box, dets: Det[]): boolean {
+  return dets.some((p) => {
+    if (p.label.toLowerCase() !== "person" || p.score < 0.3) return false
+    const iw = Math.max(0, Math.min(b.x + b.w, p.box.x + p.box.w) - Math.max(b.x, p.box.x))
+    const ih = Math.max(0, Math.min(b.y + b.h, p.box.y + p.box.h) - Math.max(b.y, p.box.y))
+    return b.w * b.h > 0 && (iw * ih) / (b.w * b.h) >= 0.8
+  })
+}
+
+/**
+ * The home-word guesses this look (blocked words left out), highest score first. With a view, worn
+ * things on a person are left out too, unless the person tapped one (to name their own glasses, tap them).
+ */
+export function candidates(dets: Det[], s: Settings, v?: View): Cand[] {
   return dets
     .map((d) => ({ ...d, word: wordFor(d.label) }))
     .filter((d): d is Cand => d.word !== null && !s.blocked.includes(d.word))
+    .filter((d) => !v || v.lock || !WORN.has(d.word) || !onPerson(d.box, dets))
     .sort((a, b) => b.score - a.score)
 }
 
@@ -231,7 +251,7 @@ export function pickTarget(cands: Cand[], v?: View, focusOnly = true): Cand | nu
 
 /** Name the object, ask between up to 3 words, or keep looking. The thresholds apply to the chosen thing's own score. */
 export function decide(dets: Det[], s: Settings, v?: View): Decision {
-  const all = candidates(dets, s)
+  const all = candidates(dets, s, v)
   const top = pickTarget(all, v)
   if (!top) return { kind: "none" }
   const either = EITHER[top.label.toLowerCase()]
@@ -281,7 +301,7 @@ export function meanBox(boxes: Box[]): Box {
 
 /** The thing the app is looking at this look (see pickTarget), even if it is too unsure to use. For the live bar. */
 export function bestGuess(dets: Det[], s: Settings, v?: View): Cand | null {
-  const all = candidates(dets, s)
+  const all = candidates(dets, s, v)
   return pickTarget(all, v) ?? pickTarget(all, v, false) // nothing in the middle: show what is off to the side, so the hint can say where
 }
 

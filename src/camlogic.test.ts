@@ -152,6 +152,16 @@ describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)
     const d = decide([{ label: "Marker", score: 0.3, box: { x: 290, y: 170, w: 60, h: 140 } }, { label: "Pen/Pencil", score: 0.25, box: { x: 292, y: 172, w: 58, h: 136 } }, { label: "Cup", score: 0.29, box: { x: 10, y: 10, w: 80, h: 80 } }], D, V)
     expect(d).toMatchObject({ kind: "ask", words: ["marker", "pen", "pencil"] })
   })
+  it("glasses on a face are not named; the pen held up is (dad's test, 2026-10-19)", () => {
+    const face = { label: "Person", score: 0.9, box: { x: 0, y: 40, w: 640, h: 440 } }
+    const glasses = { label: "Glasses", score: 0.9, box: { x: 130, y: 270, w: 400, h: 100 } }
+    const pen = { label: "Pen/Pencil", score: 0.4, box: { x: 200, y: 250, w: 250, h: 90 } }
+    expect(decide([face, glasses], D, V)).toEqual({ kind: "none" })
+    expect(bestGuess([face, glasses], D, V)).toBeNull()
+    expect(decide([face, glasses, pen], D, V)).toMatchObject({ kind: "ask", words: ["pen", "pencil"] })
+    expect(decide([glasses], D, V)).toMatchObject({ kind: "name", word: "glasses" }) // on their own: named
+    expect(decide([face, glasses], D, { ...V, lock: glasses.box })).toMatchObject({ kind: "name", word: "glasses" }) // tapped: named
+  })
   it("iou", () => {
     expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 0, y: 0, w: 10, h: 10 })).toBe(1)
     expect(iou({ x: 0, y: 0, w: 10, h: 10 }, { x: 20, y: 0, w: 10, h: 10 })).toBe(0)
