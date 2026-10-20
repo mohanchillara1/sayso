@@ -5,5 +5,7 @@ public/mediapipe
 public/ort
 public/models/dfine_s_obj365.onnx
 public/models/mobileclip_s0_vision_fp16.onnx
+public/models/siglip2_*.onnx
 public/models/efficientdet_lite0_fp16.tflite
 shots
+public/models/_probe_*.onnx

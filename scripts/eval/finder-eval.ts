@@ -13,7 +13,8 @@ const finders: Record<string, Finder> = {}
 async function setup(which: string[]) {
   for (const w of which) {
     if (finders[w]) continue
-    if (w === "dfine-webgpu") finders[w] = await FINDERS[0].make()
+    if (w === "dfine-webgpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
+    if (w === "siglip2-webgpu" || w === "mobileclip-webgpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
     if (w === "mediapipe-gpu") finders[w] = await mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", LOW, w)
     if (w === "mediapipe-cpu") finders[w] = await mediapipeFinder("efficientdet_lite0.tflite", "CPU", LOW, w)
   }
@@ -56,6 +57,7 @@ async function run(dataUrl: string) {
   for (const [fname, f] of Object.entries(finders)) {
     out[fname] = {}
     for (const [vname, c] of Object.entries(variants)) {
+      f.reset?.()
       const dets = await f.detect(c, c.width, c.height)
       out[fname][vname] = dets.map((d) => ({ label: d.label, score: +d.score.toFixed(4), box: [d.box.x / c.width, d.box.y / c.height, d.box.w / c.width, d.box.h / c.height].map((v) => +v.toFixed(4)) as Out["box"] }))
     }
@@ -74,3 +76,30 @@ async function speed(name: string, n = 15) {
 
 Object.assign(window, { evalSetup: setup, evalRun: run, evalSpeed: speed })
 document.title = "finder eval ready"
+
+// --- probe for the SigLIP2 numbers (2026-10-19): run raw pixel tensors through the same WebGPU session
+let probeSession: any, probeOrt: any
+async function probeSetup(file = "siglip2_b16_224_vision_q4.onnx") {
+  probeOrt = await import("onnxruntime-web/webgpu")
+  const bytes = await (await fetch(new URL("models/" + file, document.baseURI).href)).arrayBuffer()
+  probeSession = await probeOrt.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
+  return probeSession.outputNames
+}
+/** pixel tensor given as base64 float32 (1x3x224x224) -> embedding. */
+async function probeRaw(b64: string) {
+  const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+  const out = await probeSession.run({ pixel_values: new probeOrt.Tensor("float32", new Float32Array(u.buffer), [1, 3, 224, 224]) })
+  return Array.from(out.pooler_output.data as Float32Array)
+}
+/** the app's own canvas preprocessing (smooth = imageSmoothingQuality high) -> {pixels b64, embedding}. */
+async function probeCanvas(dataUrl: string, smooth: boolean) {
+  const img = await load(dataUrl)
+  const c = document.createElement("canvas"); c.width = c.height = 224
+  const x = c.getContext("2d", { willReadFrequently: true })!; if (smooth) x.imageSmoothingQuality = "high"
+  x.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 224, 224)
+  const rgba = x.getImageData(0, 0, 224, 224).data, n = 224 * 224, px = new Float32Array(3 * n)
+  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) px[i + k * n] = (rgba[i * 4 + k] / 255 - 0.5) / 0.5
+  const u = new Uint8Array(px.buffer); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000))
+  return { pixels: btoa(s), emb: await probeRaw(btoa(s)) }
+}
+Object.assign(window, { probeSetup, probeRaw, probeCanvas })

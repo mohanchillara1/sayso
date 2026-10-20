@@ -3,7 +3,10 @@
 // Vite puts in the build), never a cloud service.
 //
 // We try them best-first and keep the first one that passes a self-test:
-//  0. MobileCLIP-S0 on the square (since 2026-10-19): it does not look for things, it says which
+//  0. SigLIP2 base on the square (since 2026-10-19, branch clip-best): the same idea as MobileCLIP below with a
+//     better model. On 537 test photos: 442 right and 51 wrong words, against 419 and 90 for MobileCLIP.
+//     Apache-2.0. 63 MB (MobileCLIP: 23 MB). Needs WebGPU; if this phone cannot start it, MobileCLIP runs.
+//  0b. MobileCLIP-S0 on the square (since 2026-10-19): it does not look for things, it says which
 //     of our words the square shows. Named the watch, pens and held glasses that D-FINE missed.
 //     Needs WebGPU. Weights: Apple research-only licence (fine for this prototype, not for a product).
 //  1. D-FINE small (Objects365, 366 kinds of object) on the phone's GPU through WebGPU.
@@ -21,6 +24,8 @@ export type Finder = {
   short: string
   settings: Settings
   detect(frame: Frame, w: number, h: number): Promise<Det[]>
+  /** Forget the looks kept for averaging (the measurement scripts call this between unrelated photos). */
+  reset?(): void
 }
 
 const asset = (path: string) => new URL(path, document.baseURI).href
@@ -37,6 +42,9 @@ const MP_GPU: Settings = { nameAt: 0.6, askAt: 0.6, blocked: ["keyboard", "cake"
 // MobileCLIP measured 2026-10-19 on the square crops of 54 + 121 test photos (vault: BUILD — glasses lock fix):
 // name at 0.7, ask at 0.3 named no glasses on a face and 4 of 53 plain textures; smoothed over the last 5 looks.
 const CLIP: Settings = { nameAt: 0.7, askAt: 0.3, blocked: [], steady: 3, whole: true }
+// SigLIP2 measured 2026-10-19 on 537 test photos (vault: BUILD — detection best): temperature 150 (in the word file), name at 0.8
+// (picked by leaving one test set out at a time: 0.8-0.9), ask at 0.3. Outright wrong names on the positive photos: 25, MobileCLIP 56.
+const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whole: true }
 const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
 
 /** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
@@ -70,6 +78,9 @@ const MODEL_CACHE = "sayso-dfine-a61e4cd"
 const CLIP_URL = () => asset("models/mobileclip_s0_vision_fp16.onnx")
 const CLIP_CACHE = "sayso-mobileclip-757d59c"
 
+const SIG_URL = () => asset("models/siglip2_b16_224_vision_q4.onnx")
+const SIG_CACHE = "sayso-siglip2-ba1f3b0"
+
 async function modelBytes(onProgress?: (part: number) => void, url = MODEL_URL(), cacheName = MODEL_CACHE): Promise<ArrayBuffer> {
   let cache: Cache | undefined
   try { cache = await caches.open(cacheName) } catch { /* no Cache Storage here: just download */ }
@@ -80,59 +91,82 @@ async function modelBytes(onProgress?: (part: number) => void, url = MODEL_URL()
   return bytes
 }
 
-/** Is the first-choice finder's file already on this phone? */
+/** Is the first-choice finder's file (either picture model) already on this phone? */
 async function modelCached(): Promise<boolean> {
-  try { return !!(await (await caches.open(CLIP_CACHE)).match(CLIP_URL())) } catch { return false }
+  try { return !!(await (await caches.open(SIG_CACHE)).match(SIG_URL())) || !!(await (await caches.open(CLIP_CACHE)).match(CLIP_URL())) } catch { return false }
+}
+
+type PictureModel = {
+  name: string
+  short: string
+  settings: Settings
+  /** The picture half of the model, the cache it is kept in, and the file with our words as numbers. */
+  url: string
+  cache: string
+  words: string
+  /** Side of the square picture the model looks at, and how its numbers are scaled: (x - mean) / std. */
+  size: number
+  mean: number
+  std: number
+  /** Name of the output that holds the picture's numbers. */
+  output: string
+  /** Temperature when the word file does not say. */
+  temperature: number
+  /** Ask the browser for its best-quality downscale (set for SigLIP2 only, which round 2 compares with the offline numbers). */
+  smooth?: boolean
 }
 
 /**
- * MobileCLIP-S0's picture half. Our words were turned into numbers once, offline (scripts/clip-embed.mjs,
- * models/clip_words.*), so only the picture half runs on the phone: square -> 256 x 256 -> numbers ->
- * how close they are to each word. Some rows are "nothing" ("an empty hand", "a man wearing glasses",
- * "wood grain"): they take a share so that a face or a table top does not get named.
+ * A picture-half model (MobileCLIP-S0 or SigLIP2). Our words were turned into numbers once, offline
+ * (scripts/clip-embed.mjs, scripts/clip-embed-siglip2.mjs, public/models/*_words.*), so only the picture half
+ * runs on the phone: square -> small picture -> numbers -> how close they are to each word. Some rows are
+ * "nothing" ("an empty hand", "a man wearing glasses", "wood grain"): they take a share so that a face or
+ * a table top does not get named.
  */
-async function clipFinder(): Promise<Finder> {
+async function pictureFinder(m: PictureModel): Promise<Finder> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
   if (!gpu || !(await gpu.requestAdapter())) throw new Error("no WebGPU")
   performance.mark("finder:start")
   const ort = await import("onnxruntime-web/webgpu")
   const [session, meta, mat] = await Promise.all([
-    modelBytes((part) => progress?.(part), CLIP_URL(), CLIP_CACHE).then((bytes) => {
+    modelBytes((part) => progress?.(part), m.url, m.cache).then((bytes) => {
       performance.mark("finder:downloaded")
       return ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
     }),
-    fetch(asset("models/clip_words.json")).then((r) => r.json() as Promise<{ dim: number; rows: { word: string | null; key: string | null }[] }>),
-    fetch(asset("models/clip_words.bin")).then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
+    fetch(asset(`models/${m.words}.json`)).then((r) => r.json() as Promise<{ dim: number; temperature?: number; rows: { word: string | null; key: string | null }[] }>),
+    fetch(asset(`models/${m.words}.bin`)).then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
   ])
   performance.mark("finder:session")
-  const SIZE = 256, D = meta.dim, R = meta.rows.length
+  const SIZE = m.size, D = meta.dim, R = meta.rows.length, TEMP = meta.temperature ?? m.temperature
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = SIZE
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+  if (m.smooth) ctx.imageSmoothingQuality = "high"
   const pixels = new Float32Array(3 * SIZE * SIZE)
   const recent: Float32Array[] = [] // the last few looks, averaged so one odd frame does not decide
   let lastAt = 0
   return {
-    name: "MobileCLIP-S0 on the square, WebGPU",
-    short: "MobileCLIP",
-    settings: CLIP,
+    name: m.name,
+    short: m.short,
+    settings: m.settings,
+    reset() { recent.length = 0 },
     async detect(frame, w, h) {
       ctx.drawImage(frame, 0, 0, w, h, 0, 0, SIZE, SIZE)
       const rgba = ctx.getImageData(0, 0, SIZE, SIZE).data
       const n = SIZE * SIZE
       for (let i = 0; i < n; i++) {
-        pixels[i] = rgba[i * 4] / 255
-        pixels[i + n] = rgba[i * 4 + 1] / 255
-        pixels[i + 2 * n] = rgba[i * 4 + 2] / 255
+        pixels[i] = (rgba[i * 4] / 255 - m.mean) / m.std
+        pixels[i + n] = (rgba[i * 4 + 1] / 255 - m.mean) / m.std
+        pixels[i + 2 * n] = (rgba[i * 4 + 2] / 255 - m.mean) / m.std
       }
       const out = await session.run({ pixel_values: new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE]) })
-      const v = out.image_embeds.data as Float32Array
+      const v = out[m.output].data as Float32Array
       let norm = 0
       for (let j = 0; j < D; j++) norm += v[j] * v[j]
       norm = Math.sqrt(norm)
       const p = new Float32Array(R)
       let top = -Infinity
-      for (let r = 0; r < R; r++) { let s = 0; for (let j = 0; j < D; j++) s += mat[r * D + j] * v[j]; p[r] = (100 * s) / norm; top = Math.max(top, p[r]) }
+      for (let r = 0; r < R; r++) { let s = 0; for (let j = 0; j < D; j++) s += mat[r * D + j] * v[j]; p[r] = (TEMP * s) / norm; top = Math.max(top, p[r]) }
       let sum = 0
       for (let r = 0; r < R; r++) { p[r] = Math.exp(p[r] - top); sum += p[r] }
       for (let r = 0; r < R; r++) p[r] /= sum
@@ -150,6 +184,15 @@ async function clipFinder(): Promise<Finder> {
     },
   }
 }
+
+const mobileclipFinder = () => pictureFinder({
+  name: "MobileCLIP-S0 on the square, WebGPU", short: "MobileCLIP", settings: CLIP,
+  url: CLIP_URL(), cache: CLIP_CACHE, words: "clip_words", size: 256, mean: 0, std: 1, output: "image_embeds", temperature: 100,
+})
+const siglipFinder = () => pictureFinder({
+  name: "SigLIP2 base on the square, WebGPU", short: "SigLIP2", settings: SIGLIP,
+  url: SIG_URL(), cache: SIG_CACHE, words: "siglip_words", size: 224, mean: 0.5, std: 0.5, output: "pooler_output", temperature: 150, smooth: true,
+})
 
 async function dfineFinder(): Promise<Finder> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
@@ -249,7 +292,8 @@ export async function selfTest(f: Finder): Promise<Finder> {
 
 /** Every finder in the order we try them; exported so the evaluation can test each one. */
 export const FINDERS: { name: string; make: () => Promise<Finder> }[] = [
-  { name: "mobileclip-webgpu", make: () => clipFinder() },
+  { name: "siglip2-webgpu", make: () => siglipFinder() },
+  { name: "mobileclip-webgpu", make: () => mobileclipFinder() },
   { name: "dfine-webgpu", make: () => dfineFinder() },
   { name: "mediapipe-gpu", make: () => mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", MP_GPU, "EfficientDet-Lite0 float16, GPU") },
   { name: "mediapipe-cpu", make: () => mediapipeFinder("efficientdet_lite0.tflite", "CPU", MP_CPU, "EfficientDet-Lite0 int8, CPU") },
