@@ -44,7 +44,10 @@ const MP_GPU: Settings = { nameAt: 0.6, askAt: 0.6, blocked: ["keyboard", "cake"
 const CLIP: Settings = { nameAt: 0.7, askAt: 0.3, blocked: [], steady: 3, whole: true }
 // SigLIP2 measured 2026-10-19 on 537 test photos (vault: BUILD — detection best): temperature 150 (in the word file), name at 0.8
 // (picked by leaving one test set out at a time: 0.8-0.9), ask at 0.3. Outright wrong names on the positive photos: 25, MobileCLIP 56.
-const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whole: true }
+// Ask list (2026-10-19): the offline scorer listed words at 0.1 or more, but the app only listed words at 0.225 or more (three
+// quarters of the ask level), so the scorer overstated the app. With the list set to 4 words at 0.07 or more the app does what the
+// scorer measured: 445 right of 537 against 432 for the old app rule.
+const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whole: true, listAt: 0.07, maxAsk: 4 }
 const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
 
 /** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
@@ -112,6 +115,9 @@ type PictureModel = {
   output: string
   /** Temperature when the word file does not say. */
   temperature: number
+  /** The finder hands over at most `keep` guesses of at least `keepAt` (the ask list is cut again in camlogic decide). */
+  keep: number
+  keepAt: number
   /** Ask the browser for its best-quality downscale (set for SigLIP2 only, which round 2 compares with the offline numbers). */
   smooth?: boolean
 }
@@ -179,19 +185,19 @@ async function pictureFinder(m: PictureModel): Promise<Finder> {
       for (const q of recent) for (let r = 0; r < R; r++) avg[r] += q[r] / recent.length
       // Words only: the "nothing" rows just take their share. Every guess covers the whole square.
       const dets: Det[] = []
-      meta.rows.forEach((row, r) => { if (row.key && avg[r] >= 0.1) dets.push({ label: row.key, score: avg[r], box: { x: 0, y: 0, w, h } }) })
-      return dets.sort((a, b) => b.score - a.score).slice(0, 3)
+      meta.rows.forEach((row, r) => { if (row.key && avg[r] >= m.keepAt) dets.push({ label: row.key, score: avg[r], box: { x: 0, y: 0, w, h } }) })
+      return dets.sort((a, b) => b.score - a.score).slice(0, m.keep)
     },
   }
 }
 
 const mobileclipFinder = () => pictureFinder({
   name: "MobileCLIP-S0 on the square, WebGPU", short: "MobileCLIP", settings: CLIP,
-  url: CLIP_URL(), cache: CLIP_CACHE, words: "clip_words", size: 256, mean: 0, std: 1, output: "image_embeds", temperature: 100,
+  url: CLIP_URL(), cache: CLIP_CACHE, words: "clip_words", size: 256, mean: 0, std: 1, output: "image_embeds", temperature: 100, keep: 3, keepAt: 0.1,
 })
 const siglipFinder = () => pictureFinder({
   name: "SigLIP2 base on the square, WebGPU", short: "SigLIP2", settings: SIGLIP,
-  url: SIG_URL(), cache: SIG_CACHE, words: "siglip_words", size: 224, mean: 0.5, std: 0.5, output: "pooler_output", temperature: 150, smooth: true,
+  url: SIG_URL(), cache: SIG_CACHE, words: "siglip_words", size: 224, mean: 0.5, std: 0.5, output: "pooler_output", temperature: 150, keep: 5, keepAt: 0.05, smooth: true,
 })
 
 async function dfineFinder(): Promise<Finder> {

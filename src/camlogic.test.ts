@@ -8,6 +8,13 @@ describe("decide", () => {
   it("names the most confident home object", () => {
     expect(decide([det("cup", 0.6), det("chair", 0.8)], S)).toMatchObject({ kind: "name", word: "chair" })
   })
+  it("asks with up to 3 words at three quarters of the ask level, or with listAt and maxAsk when the finder sets them", () => {
+    const five = [det("cup", 0.34), det("bottle", 0.24), det("bowl", 0.2), det("spoon", 0.1), det("fork", 0.08)]
+    expect(decide(five, S)).toMatchObject({ kind: "ask", words: ["cup", "bottle"] })
+    const L: Settings = { ...S, listAt: 0.07, maxAsk: 4 }
+    expect(decide(five, L)).toMatchObject({ kind: "ask", words: ["cup", "bottle", "bowl", "spoon"] })
+    expect(decide(five.slice(0, 3), L)).toMatchObject({ kind: "ask", words: ["cup", "bottle", "bowl"] })
+  })
   it("ignores things that are not home words, like people", () => {
     expect(decide([det("person", 0.99), det("cup", 0.7)], S)).toMatchObject({ kind: "name", word: "cup" })
     expect(decide([det("Person", 0.99)], S)).toEqual({ kind: "none" })

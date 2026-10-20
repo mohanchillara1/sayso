@@ -154,6 +154,10 @@ export type Settings = {
   whole?: boolean
   /** Lower "which one is it?" levels for words this finder only ever finds weakly (pens: 0.10–0.36). */
   askFor?: Record<string, number>
+  /** Lowest score for an extra word in the "which one is it?" list (default: three quarters of the ask level). */
+  listAt?: number
+  /** Most words in that list (default 3). */
+  maxAsk?: number
 }
 
 export type Decision =
@@ -270,7 +274,7 @@ export function pickTarget(cands: Cand[], v?: View, focusOnly = true): Cand | nu
   return best
 }
 
-/** Name the object, ask between up to 3 words, or keep looking. The thresholds apply to the chosen thing's own score. */
+/** Name the object, ask between up to 3 words (`maxAsk`), or keep looking. The thresholds apply to the chosen thing's own score. */
 export function decide(dets: Det[], s: Settings, v?: View): Decision {
   const all = candidates(dets, s, v)
   const top = pickTarget(all, v)
@@ -281,10 +285,10 @@ export function decide(dets: Det[], s: Settings, v?: View): Decision {
   // Not sure: offer the words the finder was weighing for this same thing (boxes that overlap it).
   const words: string[] = []
   for (const d of all) {
-    if (d !== top && (d.score < askLevel(d.word, s) * 0.75 || iou(d.box, top.box) < 0.3)) continue // the chosen thing's own words always
+    if (d !== top && (d.score < (s.listAt ?? askLevel(d.word, s) * 0.75) || iou(d.box, top.box) < 0.3)) continue // the chosen thing's own words always
     for (const w of EITHER[d.label.toLowerCase()] ?? [d.word]) if (!words.includes(w)) words.push(w)
   }
-  return { kind: "ask", words: words.slice(0, 3), box: top.box }
+  return { kind: "ask", words: words.slice(0, s.maxAsk ?? 3), box: top.box }
 }
 
 /** A short key for a decision, so we can check that several looks in a row agree. */
