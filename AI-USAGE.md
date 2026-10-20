@@ -33,3 +33,4 @@ students. It is a scaffold, not the entry. Before submission Mohan and Charan mu
 read every file, rewrite the parts they will present and explain to judges, and log
 each change above. Judges can ask for the source code (Rules §7.3), and each student
 must be able to explain every file.
+| 2026-10-19 (Point and name: independent check of clip-best) | Claude (Anthropic), Claude Code | No app code changed. Re-embedded focus3 and the 253-photo coverage set, rescored (45/48 and 248/253), checked PNG headers and 4 Commons licences; findings appended to the vault report. | Nothing yet |
