@@ -12,7 +12,7 @@ import "@fontsource/atkinson-hyperlegible/700.css"
 import "./style.css"
 import { prepare } from "./text"
 import { listPhrases, deletePhrase, savePhrase, listSessions, type SavedPhrase } from "./db"
-import { h, button, show, shrinkPhoto, guard, prompt, picture, icon, DISCLAIMER } from "./ui"
+import { h, button, show, shrinkPhoto, guard, prompt, picture, picUrl, picsCredit, icon, DISCLAIMER } from "./ui"
 import { findPick } from "./find"
 import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
@@ -67,7 +67,7 @@ export async function addStarters(): Promise<number> {
   const have = await listPhrases().catch(() => [] as SavedPhrase[])
   const add = missingStarters(have.map((p) => p.text))
   const now = Date.now()
-  for (const [i, s] of add.entries()) await savePhrase({ text: s.text, createdAt: now - i, pic: s.pic })
+  for (const [i, s] of add.entries()) await savePhrase({ text: s.text, createdAt: now - i, ...(s.pic ? { pic: s.pic } : {}), ...(s.img ? { img: s.img } : {}) })
   return add.length
 }
 
@@ -83,8 +83,9 @@ export async function wordsScreen() {
     h("ul", { class: "list" }, ...items.map((p) => h("li", {},
       h("button", { class: "item", type: "button", onclick: guard(() => itemScreen(p)) },
         picture(p, "thumb"),
-        h("span", { class: "t" }, p.text, h("small", {}, p.photo ? "Your photo" : p.pic ? "Built-in picture" : "No picture")),
+        h("span", { class: "t" }, p.text, h("small", {}, p.photo ? "Your photo" : p.pic || p.img ? "Built-in picture" : "No picture")),
       )))),
+    picsCredit(),
     h("div", { class: "dock" },
       missing ? button(items.length ? `Add the ${missing} everyday words` : `Start with ${STARTER.length} words`, async () => { await addStarters(); void wordsScreen() }, items.length ? "btn" : "btn go", "▶") : "",
       button("Add a word", () => itemScreen(undefined), items.length ? "btn go" : "btn", "＋"),
@@ -98,7 +99,7 @@ export function itemScreen(existing: SavedPhrase | undefined) {
   let photo: Blob | undefined = existing?.photo
   const text = h("input", { type: "text", value: existing?.text ?? "", placeholder: "cup", maxLength: 80 })
   const preview = h("div", {})
-  const showPhoto = () => preview.replaceChildren(photo ? h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" }) : existing?.pic ? h("span", { class: "big-photo emoji", ariaHidden: "true" }, existing.pic) : h("span"))
+  const showPhoto = () => preview.replaceChildren(photo ? h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" }) : existing?.img ? h("img", { class: "big-photo", src: picUrl(existing.img), alt: existing.text }) : existing?.pic ? h("span", { class: "big-photo emoji", ariaHidden: "true" }, existing.pic) : h("span"))
   const file = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true })
   file.addEventListener("change", async () => {
     const f = file.files?.[0]

@@ -11,6 +11,8 @@ export type SavedPhrase = {
   photo?: Blob
   /** Built-in picture (an emoji) for starter words that have no photo yet. */
   pic?: string
+  /** Built-in clipart picture (a PNG under public/pics/, as "pics/fork.png") for starter words with no clear emoji. Shown after a photo, before the emoji. */
+  img?: string
 }
 export type SessionRecord = {
   id?: number
