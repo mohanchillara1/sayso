@@ -18,7 +18,7 @@ import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
 import { loadingScreen } from "./loading"
 import { STARTER, missingStarters } from "./starter"
-import { isSlower, setSlower } from "./pace"
+import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
 import { voices, currentVoice, chooseVoice, onVoices, speak } from "./speak"
 
 const ACK_KEY = "singback.ack"
@@ -179,9 +179,17 @@ function settingsScreen() {
     h("details", { class: "panel fine" },
       h("summary", {}, "Fine-tune (optional)"),
       voicePicker(),
+      testInfoSwitch(),
     ),
     button("About this app", noteScreen, "btn quiet", "ℹ"),
   )
+}
+
+/** For testers: show which object finder runs and how fast, on the camera picture. Off by default. */
+function testInfoSwitch() {
+  const box = h("input", { type: "checkbox", checked: showTestInfo() }) as HTMLInputElement
+  box.addEventListener("change", () => setTestInfo(box.checked))
+  return h("label", { class: "switch" }, box, h("span", {}, h("b", {}, "Show test info"), h("small", {}, "Shows which object finder runs, and how fast, on the camera picture.")))
 }
 
 /** One plain switch that slows everything timed: speech, the word in Hear it, and Point and name (see pace.ts). Off by default. */

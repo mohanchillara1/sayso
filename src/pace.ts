@@ -34,3 +34,15 @@ export function setSlower(on: boolean) {
   try { localStorage.setItem(KEY, on ? "1" : "0") } catch { /* storage blocked: stays normal */ }
 }
 export const pace = (): Pace => (isSlower() ? PACE.slower : PACE.normal)
+
+/**
+ * Test info on the camera (which finder runs, ms per look). Hidden by default so it is not in the CAC video;
+ * on with ?debug in the address, or Settings → Fine-tune → "Show test info".
+ */
+const DEBUG_KEY = "sayso.debug"
+export function showTestInfo(): boolean {
+  try { return new URLSearchParams(location.search).has("debug") || localStorage.getItem(DEBUG_KEY) === "1" } catch { return false }
+}
+export function setTestInfo(on: boolean) {
+  try { localStorage.setItem(DEBUG_KEY, on ? "1" : "0") } catch { /* stays off */ }
+}

@@ -211,3 +211,4 @@ body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .switch input { width: 32px; height: 32px; flex: none; accent-color: var(--accent); }
 .switch b { display: block; font-size: 1.2rem; }
 .switch small { display: block; color: var(--soft); font-size: 1rem; }
+.finder-badge[hidden] { display: none; } /* the badge class sets no display, but be explicit (Learnings 10-18) */

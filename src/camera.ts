@@ -14,7 +14,7 @@ import { speak, sayPrompt } from "./speak"
 import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
 import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
-import { pace } from "./pace"
+import { pace, showTestInfo } from "./pace"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
@@ -67,7 +67,7 @@ async function look() {
   wrap.dataset.finder = finder.name // for tests and the build report
 
   // What the finder sees, live: its best guess, how sure it is, a dashed box where it is, and what to do.
-  const badge = h("span", { class: "finder-badge" }, finder.short)
+  const badge = h("span", { class: "finder-badge", hidden: !showTestInfo() }, finder.short) // test info only (see pace.ts)
   const liveBox = h("div", { class: "box live", hidden: true })
   wrap.append(liveBox, badge)
   const guessWord = h("b", {}, "…")
