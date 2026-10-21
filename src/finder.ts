@@ -53,10 +53,18 @@ const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whol
 const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
 
 /** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
+// Each model file's real size. A server that compresses the file sends no size (or the compressed
+// size), and then the loading screen could not show how much has arrived.
+const MODEL_BYTES: Record<string, number> = {
+  "dfine_s_obj365.onnx": 42_123_225,
+  "mobileclip_s0_vision_fp16.onnx": 22_876_479,
+  "siglip2_b16_224_vision_q4.onnx": 63_267_466,
+}
+
 async function download(url: string, onProgress?: (part: number) => void): Promise<ArrayBuffer> {
   const res = await fetch(url)
   if (!res.ok || !res.body) throw new Error(`could not download ${url}`)
-  const total = Number(res.headers.get("content-length")) || 0
+  const total = MODEL_BYTES[url.split("/").pop() ?? ""] || Number(res.headers.get("content-length")) || 0
   if (!onProgress || !total) return res.arrayBuffer()
   const out = new Uint8Array(total)
   const reader = res.body.getReader()
