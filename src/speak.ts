@@ -15,10 +15,12 @@ import { pace } from "./pace"
 
 const KEY = "sayso.voice"
 const BROKEN_KEY = "sayso.voice.broken" // voices that did not speak on this phone
-const WORKS_KEY = "sayso.voice.works" // some voice has spoken here, so a silent one is a broken voice, not a blocked phone
 const START_WITHIN_MS = 4000
 let chosen: SpeechSynthesisVoice | null = null
 let lastBroken: string | null = null
+// Some voice has started speaking during this visit. Only then is a silent voice a broken voice and not a
+// phone that blocks speech until the first tap (iPhones do), so this is not remembered between visits.
+let spokeThisVisit = false
 let said = 0 // counts every speak and every hush: a word cut off by a newer one is not judged
 const brokenListeners: ((name: string) => void)[] = []
 
@@ -49,6 +51,7 @@ export const lastBrokenVoice = () => lastBroken
 export function onVoiceBroken(fn: (name: string) => void) { brokenListeners.push(fn) }
 
 function markBroken(name: string) {
+  if (voices().length <= 1) return // never take away the last voice
   try { localStorage.setItem(BROKEN_KEY, JSON.stringify([...new Set([...brokenNames(), name])])) } catch { /* not kept */ }
   lastBroken = name
   if (savedName() === name) { try { localStorage.removeItem(KEY) } catch { /* not kept */ } }
@@ -110,17 +113,14 @@ export function speak(text: string, rate: number = pace().wordRate, retry = true
       markBroken(voice.name)
       if (retry && chosen && chosen !== voice) speak(text, rate, false) // the next voice says it instead
     }
-    u.onstart = () => { started = true; try { localStorage.setItem(WORKS_KEY, "1") } catch { /* not kept */ } }
+    u.onstart = () => { started = true; spokeThisVisit = true }
     u.onend = () => { over = true }
     u.onerror = (e) => {
-      if (started || ["interrupted", "canceled", "not-allowed"].includes(e.error)) { over = true; return }
-      failed()
+      // Only errors that are about the voice itself; not being cut off, blocked, offline or a busy speaker.
+      if (!started && ["voice-unavailable", "language-unavailable", "synthesis-unavailable", "synthesis-failed"].includes(e.error)) failed()
+      over = true
     }
-    setTimeout(() => {
-      let worksHere = false
-      try { worksHere = localStorage.getItem(WORKS_KEY) === "1" } catch { /* unknown */ }
-      if (!started && !over && worksHere && said === mine) failed()
-    }, START_WITHIN_MS)
+    setTimeout(() => { if (!started && !over && spokeThisVisit && said === mine) failed() }, START_WITHIN_MS)
     speechSynthesis.cancel()
     // Chrome can stay paused after a cancel on some systems; resume is harmless otherwise.
     speechSynthesis.resume()
