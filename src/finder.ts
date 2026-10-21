@@ -100,7 +100,8 @@ async function modelBytes(onProgress?: (part: number) => void, url = MODEL_URL()
   const hit = await cache?.match(url)
   if (hit) { onProgress?.(1); return hit.arrayBuffer() }
   const bytes = await download(url, onProgress)
-  try { await cache?.put(url, new Response(bytes.slice(0))) } catch { /* full or blocked: next time downloads again */ }
+  // new Response() keeps its own copy of the bytes, so no extra .slice() copy (63 MB less memory on the first load).
+  try { await cache?.put(url, new Response(bytes)) } catch { /* full or blocked: next time downloads again */ }
   return bytes
 }
 

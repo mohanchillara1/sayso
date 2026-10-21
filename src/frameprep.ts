@@ -45,11 +45,12 @@ export function brighten(src: Src): HTMLCanvasElement {
   return c
 }
 
-/** The picture shrunk to `k` of its size in the middle of a grey frame of the same size. */
-export function padOut(src: Src, k = 0.7): HTMLCanvasElement {
+/** The picture shrunk to `k` of its size in the middle of a grey frame of the same size. `into`: a canvas to reuse. */
+export function padOut(src: Src, k = 0.7, into?: HTMLCanvasElement): HTMLCanvasElement {
   const [w, h] = size(src)
-  const c = document.createElement("canvas")
-  c.width = w; c.height = h
+  const c = into ?? document.createElement("canvas")
+  if (c.width !== w) c.width = w
+  if (c.height !== h) c.height = h
   const x = c.getContext("2d")!
   x.fillStyle = "#7f7f7f"
   x.fillRect(0, 0, w, h)
@@ -69,10 +70,15 @@ export function middleSquare(w: number, h: number, k = 0.7) {
   return { x: Math.round((w - s) / 2), y: Math.round((h - s) / 2), w: s, h: s }
 }
 
-/** Just that part of the picture: the finder looks only there, so it stops naming things around the room. */
-export function cropTo(src: Src, b: { x: number; y: number; w: number; h: number }): HTMLCanvasElement {
-  const c = document.createElement("canvas")
-  c.width = b.w; c.height = b.h
+/**
+ * Just that part of the picture: the finder looks only there, so it stops naming things around the room.
+ * `into`: a canvas to reuse. The camera loop passes one, so it does not make a new canvas every look
+ * (iPhones free canvas memory late; 2026-10-21, the "Look again" crash on dad's phone).
+ */
+export function cropTo(src: Src, b: { x: number; y: number; w: number; h: number }, into?: HTMLCanvasElement): HTMLCanvasElement {
+  const c = into ?? document.createElement("canvas")
+  if (c.width !== b.w) c.width = b.w
+  if (c.height !== b.h) c.height = b.h
   c.getContext("2d")!.drawImage(src, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h)
   return c
 }

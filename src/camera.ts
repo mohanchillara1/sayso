@@ -19,7 +19,43 @@ import { pace, showTestInfo } from "./pace"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
+// One camera stream, one video and two work canvases for the whole Point and name visit (2026-10-21: on dad's
+// phone, "Look again" crashed the app; every look opened the camera again and made new canvases, and iPhones
+// free that memory late). The camera turns off when the person leaves Point and name, after a minute on the
+// answer screen, or when the app goes to the background; the next look turns it on again.
+let cam: MediaStream | null = null
+let camVideo: HTMLVideoElement | null = null
+let lastSnap: HTMLCanvasElement | null = null
+let idleTimer = 0
+const cropCanvas = document.createElement("canvas")
+const padCanvas = document.createElement("canvas")
+const CAMERA_IDLE_MS = 60_000
+
+async function openCamera(): Promise<MediaStream> {
+  clearTimeout(idleTimer)
+  if (cam?.getVideoTracks().some((t) => t.readyState === "live")) return cam
+  closeCamera()
+  cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 } }, audio: false })
+  return cam
+}
+
+function closeCamera() {
+  clearTimeout(idleTimer)
+  cam?.getTracks().forEach((t) => t.stop())
+  cam = null
+  if (camVideo) { camVideo.pause(); camVideo.srcObject = null }
+}
+
+/** Frees the frozen picture of the last look (a canvas holds its memory until it is emptied). */
+function dropSnap() {
+  if (lastSnap) { lastSnap.width = lastSnap.height = 0; lastSnap = null }
+}
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) closeCamera() })
+
 export function cameraScreen() {
+  closeCamera() // back here from a look or an answer: the camera goes off
+  dropSnap()
   // Start getting the finder ready while the person reads this screen; it can take a while the first time.
   const bar = progressBar()
   loadFinder(bar.set).catch(() => { /* look() tries again and explains */ })
@@ -35,7 +71,8 @@ export function cameraScreen() {
 async function look() {
   const status = h("p", { class: "cam-status" }, "Starting the camera…")
   status.setAttribute("role", "status")
-  const video = h("video", { muted: true, playsInline: true, autoplay: true }) as HTMLVideoElement
+  dropSnap()
+  const video = camVideo ??= h("video", { muted: true, playsInline: true, autoplay: true }) as HTMLVideoElement
   const wrap = h("div", { class: "cam-wrap" }, video)
   const bar = progressBar()
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, bar.el, h("p", { class: "cam-note" }, NOTE))
@@ -43,14 +80,14 @@ async function look() {
 
   let stream: MediaStream
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 } }, audio: false })
+    stream = await openCamera()
   } catch {
     if (!cancelled(ep2)) status.textContent = "Could not open the camera. Check that this website is allowed to use it, then try again."
     return
   }
-  const stop = () => stream.getTracks().forEach((t) => t.stop())
+  const stop = () => { if (cam === stream) closeCamera() } // never turn off a newer look's camera
   if (cancelled(ep2)) return stop()
-  video.srcObject = stream
+  if (video.srcObject !== stream) video.srcObject = stream
   try { await video.play() } catch { /* autoplay with muted video is allowed; ignore */ }
 
   status.textContent = "Getting the object finder ready… The first time can take a minute."
@@ -102,7 +139,7 @@ async function look() {
     for (const hi of histories) hi.length = 0 // a new target: start agreeing again
     for (const bx of boxes) bx.length = 0
   }
-  video.addEventListener("click", (e) => {
+  video.onclick = (e) => { // onclick, not addEventListener: the same video is used for every look
     const r = video.getBoundingClientRect()
     const vw = video.videoWidth, vh = video.videoHeight
     if (!vw || !r.width) return
@@ -111,7 +148,7 @@ async function look() {
     const under = lastCands.filter((c) => x >= c.box.x && x <= c.box.x + c.box.w && y >= c.box.y && y <= c.box.y + c.box.h)
       .sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]
     setLock(under ? under.box : { x: x - vw * 0.2, y: y - vh * 0.2, w: vw * 0.4, h: vh * 0.4 })
-  })
+  }
 
   // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
   // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
@@ -127,6 +164,10 @@ async function look() {
   let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0, lastGuessShown = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
+    if (cam !== stream) { // the camera went off (the app was in the background): start the look again
+      if (!cancelled(ep2)) void look()
+      return
+    }
     if (video.readyState < 2) continue
     const vw = video.videoWidth, vh = video.videoHeight
     const sq = middleSquare(vw, vh)
@@ -140,8 +181,8 @@ async function look() {
     let guess: ReturnType<typeof bestGuess> = null
     const t0 = performance.now()
     try {
-      const cut = cropTo(video, sq)
-      let dets = await finder.detect(padded ? padOut(cut) : cut, sq.w, sq.h)
+      const cut = cropTo(video, sq, cropCanvas)
+      let dets = await finder.detect(padded ? padOut(cut, 0.7, padCanvas) : cut, sq.w, sq.h)
       if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, sq.w, sq.h) }))
       dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } })) // back to the whole picture
       if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
@@ -162,7 +203,9 @@ async function look() {
     const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
     if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= p0.warmUpMs) {
       // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
-      return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, stop, ep2)
+      // The camera stays on (paused) for "Look again", and goes off after a minute of answering.
+      const pause = () => { video.pause(); idleTimer = window.setTimeout(stop, CAMERA_IDLE_MS) }
+      return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, pause, ep2)
     }
 
     // Show the guess and how sure the finder is (100% = sure enough to name it). With Slower, at most every guessEveryMs.
@@ -227,12 +270,13 @@ const HINTS: Record<Hint, { icon: string; text: string; say?: string }> = {
   still: { icon: "👍", text: "Good. Hold still." },
 }
 
-function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, stopCamera: () => void, ep: number) {
-  // Freeze the frame, then turn the camera off while the person answers.
+function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, pauseCamera: () => void, ep: number) {
+  // Freeze the frame, then pause the camera while the person answers.
   const vw = video.videoWidth, vh = video.videoHeight
   const snap = h("canvas", { class: "snap", width: vw, height: vh }) as HTMLCanvasElement
   snap.getContext("2d")!.drawImage(video, 0, 0, vw, vh)
-  stopCamera()
+  lastSnap = snap
+  pauseCamera()
   // Sure: one word. Not sure: the person picks from up to three after trying to say it.
   let word = d.kind === "name" ? d.word : ""
   const p = boxPercent(d.box, vw, vh)
