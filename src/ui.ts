@@ -1,6 +1,6 @@
 // Small DOM helpers and the page frame every screen sits in.
 import { stopAll } from "./epoch"
-import { sayPrompt } from "./speak"
+import { sayPrompt, hush } from "./speak"
 import type { SavedPhrase } from "./db"
 import { PICS_CREDIT } from "./starter"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
@@ -91,7 +91,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!
 /** Replace the whole screen. `back` shows a big back button top left. */
 export function show(mode: Mode, back: (() => void) | null, ...nodes: Node[]) {
   stopAll() // anything still playing from the last screen stops here
-  try { speechSynthesis.cancel() } catch { /* no speech here */ }
+  hush()
   lastShow = Date.now()
   document.body.dataset.mode = mode
   const top = h("header", { class: "top" },

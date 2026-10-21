@@ -96,7 +96,7 @@ function runFind(round: Item[], all: Item[]) {
         finishWord(false)
       } else {
         status.textContent = "Not that one. Listen again."
-        sayPrompt(`Not that one. ${target.text}.`)
+        sayPrompt(`Not that one. Listen again: ${target.text}.`) // the screen says "Not that one. Listen again."
       }
     }
 

@@ -19,7 +19,8 @@ import { warmFinder } from "./finder"
 import { loadingScreen } from "./loading"
 import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
-import { voices, currentVoice, chooseVoice, onVoices, speak } from "./speak"
+import { voices, currentVoice, chooseVoice, onVoices, onVoiceBroken, lastBrokenVoice, speak } from "./speak"
+import { voiceLabel, baseName } from "./voicelogic"
 
 const ACK_KEY = "singback.ack"
 
@@ -200,29 +201,36 @@ function slowerSwitch() {
     h("span", {}, h("b", {}, "Slower"), h("small", {}, "Speaks more slowly, and Point and name waits longer before it stops on a thing.")))
 }
 
-/** Voice choice: the app's pick is first; any other English voice on this phone can be chosen and tried. */
+/**
+ * Voice choice: "Let the app choose" and at most four good voices (dad, 2026-10-21: "just keep the extra voices
+ * to the names"). No novelty voices; a voice that does not speak on this phone is taken off the list (speak.ts).
+ */
 function voicePicker() {
   const sel = h("select", {})
+  const label = (v: SpeechSynthesisVoice) => voiceLabel({ name: v.name, lang: v.lang, local: v.localService, isDefault: v.default })
   const fill = () => {
     const vs = voices()
     const now = currentVoice()
     let saved: string | null = null
     try { saved = localStorage.getItem("sayso.voice") } catch { /* none */ }
     sel.replaceChildren(
-      h("option", { value: "", selected: !saved }, vs[0] ? `Let the app choose (${vs[0].name})` : "Let the app choose"),
-      ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, `${v.name}${v.localService ? "" : " (online)"}`)),
+      h("option", { value: "", selected: !saved }, vs[0] ? `Let the app choose: ${label(vs[0])}` : "Let the app choose"),
+      ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, label(v))),
     )
     if (!vs.length) sel.append(h("option", { value: "", disabled: true }, "No English voices found on this device"))
-    note.textContent = now ? `Now using: ${now.name}${now.localService ? ", on this device" : ", online: words are sent to the voice service"}.` : ""
+    const gone = lastBrokenVoice()
+    note.textContent = (gone ? `The voice "${baseName(gone)}" did not work on this phone, so it is off the list. ` : "") +
+      (now ? `Now using: ${label(now)}${now.localService ? ", on this phone" : ", online: words are sent to the voice service"}.` : "")
   }
   const note = h("p", { class: "soft" })
   sel.addEventListener("change", () => { chooseVoice(sel.value || null); fill(); speak("cup") })
   onVoices(fill)
+  onVoiceBroken(() => { if (sel.isConnected) fill() })
   fill()
   return h("div", {},
     h("label", { class: "field" }, "Voice", sel),
     note,
-    button("Try the voice", () => void speak("Which one is it? Cup."), "btn", "🔊"),
+    button("Try the voice", () => void speak("This is the voice. Cup."), "btn", "🔊"),
   )
 }
 
