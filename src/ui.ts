@@ -2,6 +2,7 @@
 import { stopAll } from "./epoch"
 import { sayPrompt } from "./speak"
 import type { SavedPhrase } from "./db"
+import { PICS_CREDIT } from "./starter"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
@@ -71,9 +72,16 @@ export function prompt(text: string, tag: "h2" | "p" = "h2", cls = "") {
   return h("div", { class: `prompt ${cls}` }, h(tag, tag === "p" ? { class: "say" } : {}, text), b)
 }
 
+/** Where a built-in clipart picture lives ("pics/fork.png" under the site's base, so it works from any folder). */
+export const picUrl = (img: string) => import.meta.env.BASE_URL + img
+
+/** The small credit line for the clipart pictures, with a link to the full list. */
+export const picsCredit = (): HTMLElement => h("p", { class: "soft credit" }, PICS_CREDIT, " ", h("a", { href: picUrl("pics/CREDITS.md"), target: "_blank", rel: "noopener" }, "Full credits"))
+
 /** The picture for a word: its photo, else its built-in picture (emoji), else its first letter. */
 export function picture(p: SavedPhrase, cls: string): HTMLElement {
   if (p.photo) return h("img", { class: cls, src: URL.createObjectURL(p.photo), alt: "" })
+  if (p.img) return h("img", { class: `${cls} clip`, src: picUrl(p.img), alt: p.text })
   if (p.pic) return h("span", { class: `${cls} emoji`, ariaHidden: "true" }, p.pic)
   return h("span", { class: `${cls} none` }, p.text.charAt(0).toUpperCase())
 }

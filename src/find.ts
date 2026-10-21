@@ -3,7 +3,7 @@
 // which word it said), so nobody has to judge. Two wrong taps and it shows the
 // right one. Words show their photo, else their built-in picture, else the written word.
 // First time, with no words yet, one tap adds the everyday starter words.
-import { h, button, show, guard, prompt, picture, icon } from "./ui"
+import { h, button, show, guard, prompt, picture, picsCredit, icon } from "./ui"
 import { listPhrases, saveSession, type SavedPhrase } from "./db"
 import { homeScreen, wordsScreen, addStarters } from "./main"
 import { STARTER } from "./starter"
@@ -25,6 +25,7 @@ export async function findPick() {
       !canSpeak() ? h("p", { class: "warn" }, "This browser cannot speak words, so this mode will not work here.") : "",
       enough ? "" : h("p", {}, `No words yet. Start with ${STARTER.length} everyday words with pictures.`),
     ),
+    picsCredit(),
     h("div", { class: "dock" },
       enough
         ? (canSpeak() ? button(`Start (${ROUND} words)`, () => runFind(pickRound(all, ROUND), all), "btn go", "▶") : "")
@@ -102,7 +103,7 @@ function runFind(round: Item[], all: Item[]) {
       const el = h("button", { class: "choice", type: "button" }) as HTMLButtonElement
       el.setAttribute("aria-label", `Picture ${k + 1}`)
       if (c.id === target.id) el.dataset.right = "1"
-      if (c.photo || c.pic) {
+      if (c.photo || c.pic || c.img) {
         const p = picture(c, "pic")
         if (p instanceof HTMLImageElement) urls.push(p.src)
         el.append(p)
