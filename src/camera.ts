@@ -14,6 +14,7 @@ import { speak, sayPrompt } from "./speak"
 import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
 import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
+import { pace } from "./pace"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
@@ -121,7 +122,8 @@ async function look() {
   // The room: what was already there in the first looks (a lamp, a TV). It loses to a thing that shows up later.
   const room: Box[] = []
   const started = performance.now()
-  let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0
+  const p0 = pace() // read once per camera session (Settings → Slower)
+  let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0, lastGuessShown = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
     if (video.readyState < 2) continue
@@ -150,25 +152,29 @@ async function look() {
     if (cancelled(ep2)) break
     msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
     badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
-    const steady = finder.settings.steady
+    const steady = finder.settings.steady + p0.extraSteadyLooks
     for (const k of [padded ? 1 : 0, 2]) {
       histories[k].push(decisionKey(d))
       boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
       if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
     }
     const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
-    if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= WARM_UP_MS) {
+    if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= p0.warmUpMs) {
       // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
       return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, stop, ep2)
     }
 
-    // Show the guess and how sure the finder is (100% = sure enough to name it).
+    // Show the guess and how sure the finder is (100% = sure enough to name it). With Slower, at most every guessEveryMs.
+    const showGuess = performance.now() - lastGuessShown >= p0.guessEveryMs
+    if (showGuess) lastGuessShown = performance.now()
     const pc = guess ? surePercent(guess.score, finder.settings) : 0
     // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
-    guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
-    fill.style.width = `${pc}%`
-    pct.textContent = `${pc}%`
-    meter.setAttribute("aria-valuenow", String(pc))
+    if (showGuess) {
+      guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
+      fill.style.width = `${pc}%`
+      pct.textContent = `${pc}%`
+      meter.setAttribute("aria-valuenow", String(pc))
+    }
     if (guess) {
       const p = boxPercent(guess.box, vw, vh)
       Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
@@ -192,7 +198,7 @@ async function look() {
       hintText.textContent = HINTS[hint].text
       hintEl.hidden = false
     }
-    if (HINTS[hint].say && performance.now() - lastSaid > 5000 && performance.now() - started > 1500) {
+    if (HINTS[hint].say && performance.now() - lastSaid > p0.hintEveryMs && performance.now() - started > 1500) {
       lastSaid = performance.now()
       sayPrompt(HINTS[hint].say!)
     }
@@ -202,8 +208,6 @@ async function look() {
 
 /** How many first looks count as "the room". */
 const ROOM_LOOKS = 3
-/** Nothing is named in the first moments after the camera opens, while the person lifts the thing up (dad, 2026-10-19). */
-const WARM_UP_MS = 1500
 
 /** A box made bigger around its middle, kept inside the picture. */
 function grow(b: Box, k: number, w: number, h: number): Box {
@@ -308,7 +312,9 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
   dock.replaceChildren(button("Hear it", choose, "btn go", "🔊"), button("Look again", () => void look(), "btn quiet", "📷"))
   if (cancelled(ep)) return
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, answer, status, dock)
-  sayPrompt("What is this? Try to say it.")
+  const after = pace().promptAfterMs
+  if (after) setTimeout(() => { if (!cancelled(ep)) sayPrompt("What is this? Try to say it.") }, after)
+  else sayPrompt("What is this? Try to say it.")
 }
 
 /** A thin bar showing how much of the object finder has downloaded (only shown while it downloads). */

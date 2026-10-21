@@ -9,6 +9,7 @@ import { homeScreen, wordsScreen, addStarters } from "./main"
 import { STARTER } from "./starter"
 import { pickChoices, pickRound, judge, resultOf, summarise, MAX_WRONG, type FindResult } from "./findlogic"
 import { speak, sayPrompt, canSpeak } from "./speak"
+import { pace } from "./pace"
 
 const ROUND = 10
 
@@ -124,7 +125,7 @@ function runFind(round: Item[], all: Item[]) {
       dock,
     )
     // Say the word once the screen is up. Start/Next was a tap, so the browser allows sound.
-    setTimeout(() => speak(target.text), 250)
+    setTimeout(() => speak(target.text), pace().sayWordAfterMs)
   }
 
   const done = () => {

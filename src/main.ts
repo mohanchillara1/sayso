@@ -18,6 +18,7 @@ import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
 import { loadingScreen } from "./loading"
 import { STARTER, missingStarters } from "./starter"
+import { isSlower, setSlower } from "./pace"
 import { voices, currentVoice, chooseVoice, onVoices, speak } from "./speak"
 
 const ACK_KEY = "singback.ack"
@@ -171,6 +172,7 @@ function settingsScreen() {
   show("home", () => void homeScreen(),
     h("h2", {}, "Settings"),
     h("p", { class: "soft" }, "Nothing here needs changing. The app works as it is."),
+    slowerSwitch(),
     button("Save a backup", () => void backup(backupMsg), "btn", "💾"),
     backupMsg,
     persisted,
@@ -180,6 +182,14 @@ function settingsScreen() {
     ),
     button("About this app", noteScreen, "btn quiet", "ℹ"),
   )
+}
+
+/** One plain switch that slows everything timed: speech, the word in Hear it, and Point and name (see pace.ts). Off by default. */
+function slowerSwitch() {
+  const box = h("input", { type: "checkbox", checked: isSlower() }) as HTMLInputElement
+  box.addEventListener("change", () => { setSlower(box.checked); void speak(box.checked ? "Slower. On." : "Slower. Off.") })
+  return h("label", { class: "switch panel" }, box,
+    h("span", {}, h("b", {}, "Slower"), h("small", {}, "Speaks more slowly, and Point and name waits longer before it stops on a thing.")))
 }
 
 /** Voice choice: the app's pick is first; any other English voice on this phone can be chosen and tried. */

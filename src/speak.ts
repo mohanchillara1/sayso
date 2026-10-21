@@ -7,6 +7,7 @@
 // Whether a voice runs on the device or online is what the browser reports
 // (localService); we prefer on-device voices so words are not sent anywhere.
 import { rankVoices, type VoiceInfo } from "./voicelogic"
+import { pace } from "./pace"
 
 const KEY = "sayso.voice"
 let chosen: SpeechSynthesisVoice | null = null
@@ -60,10 +61,8 @@ if (canSpeak()) {
   onVoices(pick)
 }
 
-/** How fast: a single word slow and clear, a prompt a little quicker. */
-export const RATE = { word: 0.75, prompt: 0.9 } as const
-
-export function speak(text: string, rate: number = RATE.word): boolean {
+/** How fast: a single word slow and clear, a prompt a little quicker (both slower with Settings → Slower; see pace.ts). */
+export function speak(text: string, rate: number = pace().wordRate): boolean {
   if (!canSpeak()) return false
   try {
     if (!chosen) pick()
@@ -84,4 +83,4 @@ export function speak(text: string, rate: number = RATE.word): boolean {
 }
 
 /** Says a prompt ("Which one is it?") at prompt speed. */
-export const sayPrompt = (text: string) => speak(text, RATE.prompt)
+export const sayPrompt = (text: string) => speak(text, pace().promptRate)
