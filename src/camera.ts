@@ -5,10 +5,11 @@
 // the object and "What is this?". The person tries to say it, taps "Hear it" to
 // check, and says for themselves whether they got it. If the finder was not sure,
 // "Hear it" first asks which of two or three words it is. The app does not listen.
-import { h, button, show, prompt } from "./ui"
+import { h, button, show, prompt, picture, guard } from "./ui"
 import { homeScreen } from "./main"
 import { currentEpoch, cancelled } from "./epoch"
-import { saveSession, savePhrase, listPhrases } from "./db"
+import { saveSession, savePhrase, listPhrases, type SavedPhrase } from "./db"
+import { STARTER } from "./starter"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
 import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
@@ -290,7 +291,7 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
     sayPrompt("Which one is it?")
     answer.replaceChildren()
     dock.replaceChildren(
-      h("div", { class: "choices" }, ...d.words.map((w) => button(w, () => { word = w; hear() }, "btn"))),
+      h("div", { class: "choices" }, ...d.words.map((w) => pickButton(w, () => { word = w; hear() }, d.words.some(hasPicture)))),
       button("None of these", () => void look(), "btn quiet", "✖"),
     )
   }
@@ -315,6 +316,20 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
   const after = pace().promptAfterMs
   if (after) setTimeout(() => { if (!cancelled(ep)) sayPrompt("What is this? Try to say it.") }, after)
   else sayPrompt("What is this? Try to say it.")
+}
+
+/**
+ * One "Which one is it?" button: the word, with its picture when the word has one (the 82 starter words do).
+ * Pictures with words help people with aphasia (icons with labels; see the UI polish report, 2026-10-18).
+ */
+const starterFor = (word: string) => STARTER.find((x) => x.text.toLowerCase() === word.toLowerCase())
+const hasPicture = (word: string) => !!starterFor(word)
+function pickButton(word: string, go: () => void, listHasPictures: boolean): HTMLButtonElement {
+  const s = starterFor(word)
+  // In a list where some words have a picture, a word without one gets an empty slot so the words line up.
+  const pic = s ? picture({ text: s.text, pic: s.pic, img: s.img, createdAt: 0 } as SavedPhrase, "pick-pic") : listHasPictures ? h("span", { class: "pick-pic blank" }) : null
+  pic?.setAttribute("aria-hidden", "true")
+  return h("button", { class: `btn pick${pic ? "" : " no-pic"}`, type: "button", onclick: guard(go) }, ...(pic ? [pic] : []), h("span", {}, word)) as HTMLButtonElement
 }
 
 /** A thin bar showing how much of the object finder has downloaded (only shown while it downloads). */

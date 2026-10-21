@@ -47,7 +47,9 @@ const CLIP: Settings = { nameAt: 0.7, askAt: 0.3, blocked: [], steady: 3, whole:
 // Ask list (2026-10-19): the offline scorer listed words at 0.1 or more, but the app only listed words at 0.225 or more (three
 // quarters of the ask level), so the scorer overstated the app. With the list set to 4 words at 0.07 or more the app does what the
 // scorer measured: 445 right of 537 against 432 for the old app rule.
-const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whole: true, listAt: 0.07, maxAsk: 4 }
+// maxAsk 3, not 4 (2026-10-20): fewer choices on one screen for a person with aphasia. Measured offline on the 537 photos:
+// 444 right with 3 vs 445 with 4 (inside the noise); only 10 of 132 asks ever showed a 4th button. 2 buttons cost 8 photos.
+const SIGLIP: Settings = { nameAt: 0.8, askAt: 0.3, blocked: [], steady: 3, whole: true, listAt: 0.07, maxAsk: 3 }
 const MP_CPU: Settings = { nameAt: 0.5, askAt: 0.5, blocked: ["keyboard", "umbrella"], steady: 3 }
 
 /** Downloads a file and reports how far along it is (0 to 1), when the server says the size. */
