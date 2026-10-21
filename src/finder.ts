@@ -120,6 +120,8 @@ type PictureModel = {
   keepAt: number
   /** Ask the browser for its best-quality downscale (set for SigLIP2 only, which round 2 compares with the offline numbers). */
   smooth?: boolean
+  /** Where it runs: the phone's GPU (WebGPU, the default) or, on phones without WebGPU, the CPU (WebAssembly). */
+  ep?: "webgpu" | "wasm"
 }
 
 /**
@@ -130,14 +132,17 @@ type PictureModel = {
  * a table top does not get named.
  */
 async function pictureFinder(m: PictureModel): Promise<Finder> {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
-  if (!gpu || !(await gpu.requestAdapter())) throw new Error("no WebGPU")
+  const ep = m.ep ?? "webgpu"
+  if (ep === "webgpu") {
+    const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
+    if (!gpu || !(await gpu.requestAdapter())) throw new Error("no WebGPU")
+  }
   performance.mark("finder:start")
   const ort = await import("onnxruntime-web/webgpu")
   const [session, meta, mat] = await Promise.all([
     modelBytes((part) => progress?.(part), m.url, m.cache).then((bytes) => {
       performance.mark("finder:downloaded")
-      return ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
+      return ort.InferenceSession.create(new Uint8Array(bytes), { executionProviders: [ep], logSeverityLevel: 3 })
     }),
     fetch(asset(`models/${m.words}.json`)).then((r) => r.json() as Promise<{ dim: number; temperature?: number; rows: { word: string | null; key: string | null }[] }>),
     fetch(asset(`models/${m.words}.bin`)).then((r) => r.arrayBuffer()).then((b) => new Float32Array(b)),
@@ -195,9 +200,17 @@ const mobileclipFinder = () => pictureFinder({
   name: "MobileCLIP-S0 on the square, WebGPU", short: "MobileCLIP", settings: CLIP,
   url: CLIP_URL(), cache: CLIP_CACHE, words: "clip_words", size: 256, mean: 0, std: 1, output: "image_embeds", temperature: 100, keep: 3, keepAt: 0.1,
 })
-const siglipFinder = () => pictureFinder({
-  name: "SigLIP2 base on the square, WebGPU", short: "SigLIP2", settings: SIGLIP,
+const siglipFinder = (ep: "webgpu" | "wasm" = "webgpu") => pictureFinder({
+  name: `SigLIP2 base on the square, ${ep === "webgpu" ? "WebGPU" : "CPU"}`, short: ep === "webgpu" ? "SigLIP2" : "SigLIP2 CPU", settings: SIGLIP, ep,
   url: SIG_URL(), cache: SIG_CACHE, words: "siglip_words", size: 224, mean: 0.5, std: 0.5, output: "pooler_output", temperature: 150, keep: 5, keepAt: 0.05, smooth: true,
+})
+// Phones without WebGPU (2026-10-20): MobileCLIP on the CPU, same words. Before, they fell through to MediaPipe
+// (80 kinds of object), which named a mug "table" in our test. Measured on this laptop: MobileCLIP CPU 172 ms per look and
+// the same top word as on the GPU for 529 of 532 test pictures; SigLIP2 on the CPU took 1020 ms per look, too slow for a
+// phone, so it is not in the list (siglipFinder("wasm") still works for tests).
+const mobileclipCpuFinder = () => pictureFinder({
+  name: "MobileCLIP-S0 on the square, CPU", short: "MobileCLIP CPU", settings: CLIP, ep: "wasm",
+  url: CLIP_URL(), cache: CLIP_CACHE, words: "clip_words", size: 256, mean: 0, std: 1, output: "image_embeds", temperature: 100, keep: 3, keepAt: 0.1,
 })
 
 async function dfineFinder(): Promise<Finder> {
@@ -301,6 +314,7 @@ export const FINDERS: { name: string; make: () => Promise<Finder> }[] = [
   { name: "siglip2-webgpu", make: () => siglipFinder() },
   { name: "mobileclip-webgpu", make: () => mobileclipFinder() },
   { name: "dfine-webgpu", make: () => dfineFinder() },
+  { name: "mobileclip-cpu", make: () => mobileclipCpuFinder() },
   { name: "mediapipe-gpu", make: () => mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", MP_GPU, "EfficientDet-Lite0 float16, GPU") },
   { name: "mediapipe-cpu", make: () => mediapipeFinder("efficientdet_lite0.tflite", "CPU", MP_CPU, "EfficientDet-Lite0 int8, CPU") },
 ]
@@ -316,7 +330,10 @@ export function loadFinder(onProgress?: (part: number) => void): Promise<Finder>
   if (!loading) {
     loading = (async () => {
       let last: unknown
-      for (const { make } of FINDERS) {
+      // Testing aid: ?finder=<name> tries only that finder (for example ?finder=mobileclip-cpu).
+      const only = new URLSearchParams(location.search).get("finder")
+      for (const { name, make } of FINDERS) {
+        if (only && name !== only) continue
         try {
           return await selfTest(await make())
         } catch (e) {

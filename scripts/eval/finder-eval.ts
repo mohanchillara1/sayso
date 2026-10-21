@@ -14,7 +14,7 @@ async function setup(which: string[]) {
   for (const w of which) {
     if (finders[w]) continue
     if (w === "dfine-webgpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
-    if (w === "siglip2-webgpu" || w === "mobileclip-webgpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
+    if (w === "siglip2-webgpu" || w === "mobileclip-webgpu" || w === "mobileclip-cpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
     if (w === "mediapipe-gpu") finders[w] = await mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", LOW, w)
     if (w === "mediapipe-cpu") finders[w] = await mediapipeFinder("efficientdet_lite0.tflite", "CPU", LOW, w)
   }
