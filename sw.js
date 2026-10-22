@@ -1,8 +1,8 @@
-// Sayso's service worker (2026-10-18): lets the app open with no internet after the first visit,
+// SaySo's service worker (2026-10-18): lets the app open with no internet after the first visit,
 // which is what lets a phone "install" it from the browser's "Add to Home Screen".
 // vite.config.ts copies this file into the build as sw.js and fills in the two values below:
 // the build's version, and every file the app needs (its code, styles, fonts, pictures).
-const VERSION = "38c6b6b291"
+const VERSION = "7c523e2f3b"
 const FILES = [
  "./",
  "index.html",
@@ -12,6 +12,7 @@ const FILES = [
  "icons/icon-maskable-512.png",
  "icons/apple-touch-icon.png",
  "icons/icon.svg",
+ "logo/a-bubble-eye.svg",
  "models/dfine_s_obj365.labels.json",
  "models/clip_words.json",
  "models/clip_words.bin",
@@ -56,8 +57,8 @@ const FILES = [
  "assets/atkinson-hyperlegible-latin-ext-400-normal-DRk46D-x.woff2",
  "assets/atkinson-hyperlegible-latin-ext-700-normal-BoVPHkS0.woff2",
  "assets/atkinson-hyperlegible-latin-ext-700-normal-CKkU2Dpt.woff",
- "assets/index-7ufmtSHR.js",
- "assets/index-DGW0kFQr.css",
+ "assets/index-CQ_egn25.css",
+ "assets/index-Dfopu117.js",
  "assets/lexend-latin-500-normal-D9x1QWTH.woff",
  "assets/lexend-latin-500-normal-Dl-X5nog.woff2",
  "assets/lexend-latin-600-normal-DSBzZxpA.woff",

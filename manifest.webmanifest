@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Sayso",
-  "short_name": "Sayso",
+  "name": "SaySo",
+  "short_name": "SaySo",
   "description": "Practice naming everyday things. Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.",
   "start_url": "./",
   "scope": "./",

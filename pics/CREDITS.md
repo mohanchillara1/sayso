@@ -34,20 +34,20 @@ These PNG pictures are used by Hear it, find it and the word list. Each is 256 x
 
 ## Source 2: our own drawings (9 pictures)
 
-The files fork, plate, bowl, pot, kettle, fridge, pillow, towel and toaster have no downloaded source. OpenMoji has no single fork, plain plate or bowl, kettle, fridge and so on (its plate also shows a fork and knife, its bowl a spoon), and the CC0 clipart found on Wikimedia Commons came in other styles. So these nine were drawn as simple SVGs in the OpenMoji look (black outline, flat colours), written by an AI model (Claude, Anthropic) for the Sayso project on 2026-10-19. The SVG sources are in `scripts/pics-src/`; `scripts/pics-build.py` builds the PNGs.
-- Licence: **CC0 1.0 (public domain dedication)** by the Sayso project. No attribution needed.
+The files fork, plate, bowl, pot, kettle, fridge, pillow, towel and toaster have no downloaded source. OpenMoji has no single fork, plain plate or bowl, kettle, fridge and so on (its plate also shows a fork and knife, its bowl a spoon), and the CC0 clipart found on Wikimedia Commons came in other styles. So these nine were drawn as simple SVGs in the OpenMoji look (black outline, flat colours), written by an AI model (Claude, Anthropic) for the SaySo project on 2026-10-19. The SVG sources are in `scripts/pics-src/`; `scripts/pics-build.py` builds the PNGs.
+- Licence: **CC0 1.0 (public domain dedication)** by the SaySo project. No attribution needed.
 
 | File | Source |
 |---|---|
-| fork.png | scripts/pics-src/fork.svg, drawn by Claude for Sayso, CC0 |
-| plate.png | scripts/pics-src/plate.svg, drawn by Claude for Sayso, CC0 |
-| bowl.png | scripts/pics-src/bowl.svg, drawn by Claude for Sayso, CC0 |
-| pot.png | scripts/pics-src/pot.svg, drawn by Claude for Sayso, CC0 |
-| kettle.png | scripts/pics-src/kettle.svg, drawn by Claude for Sayso, CC0 |
-| fridge.png | scripts/pics-src/fridge.svg, drawn by Claude for Sayso, CC0 |
-| pillow.png | scripts/pics-src/pillow.svg, drawn by Claude for Sayso, CC0 |
-| towel.png | scripts/pics-src/towel.svg, drawn by Claude for Sayso, CC0 |
-| toaster.png | scripts/pics-src/toaster.svg, drawn by Claude for Sayso, CC0 |
+| fork.png | scripts/pics-src/fork.svg, drawn by Claude for SaySo, CC0 |
+| plate.png | scripts/pics-src/plate.svg, drawn by Claude for SaySo, CC0 |
+| bowl.png | scripts/pics-src/bowl.svg, drawn by Claude for SaySo, CC0 |
+| pot.png | scripts/pics-src/pot.svg, drawn by Claude for SaySo, CC0 |
+| kettle.png | scripts/pics-src/kettle.svg, drawn by Claude for SaySo, CC0 |
+| fridge.png | scripts/pics-src/fridge.svg, drawn by Claude for SaySo, CC0 |
+| pillow.png | scripts/pics-src/pillow.svg, drawn by Claude for SaySo, CC0 |
+| towel.png | scripts/pics-src/towel.svg, drawn by Claude for SaySo, CC0 |
+| toaster.png | scripts/pics-src/toaster.svg, drawn by Claude for SaySo, CC0 |
 
 ## Not used (and why)
 
