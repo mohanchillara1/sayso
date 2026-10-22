@@ -32,6 +32,7 @@ line each time AI helps, and each time a student rewrites AI-written code.
 | 2026-10-21 (branch `voice-switcher`) | Claude (Anthropic), Claude Code | Voice picker moved from Settings → Fine-tune to a small switcher at the bottom of home ("Auto: <name>" + up to 4 voices; a change says "cup") (`main.ts`, `style.css`). | Nothing yet |
 | 2026-10-21 (branch `start-screen`) | Claude (Anthropic), Claude Code | Start screen on every launch with an animated logo and one Start button, replacing "Getting ready…" and the first-run "Before you start" screen (`loading.ts`, `main.ts`, `style.css`); three original logo options (`public/logo/`, `logo.ts`, compare page at `?logos`), app icons and favicon from option B (`public/icons/`); clean edges: no name at the top, no footer; the disclaimer, privacy lines and picture credits moved to Settings → About (`ui.ts`, `camera.ts`, `find.ts`). | Nothing yet |
 | 2026-10-21 (branch `start-screen`, later) | Claude (Anthropic), Claude Code | Tagline on the start screen as one constant (`loading.ts` TAGLINE, test that it claims no effect); dad chose logo A: start screen, app icons and favicon from A, options B and C removed from the app (kept in the vault), eye-opening animation (`logo.ts`, `main.ts`, `style.css`, `public/icons/`). | Nothing yet |
+| 2026-10-21 (branch `start-screen`, name) | Claude (Anthropic), Claude Code | The name is "SaySo" everywhere (dad: "SaySo is fine"): manifest, page title, Apple title, README, credits, comments. | Nothing yet |
 
 ## Plain statement
 

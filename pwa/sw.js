@@ -1,4 +1,4 @@
-// Sayso's service worker (2026-10-18): lets the app open with no internet after the first visit,
+// SaySo's service worker (2026-10-18): lets the app open with no internet after the first visit,
 // which is what lets a phone "install" it from the browser's "Add to Home Screen".
 // vite.config.ts copies this file into the build as sw.js and fills in the two values below:
 // the build's version, and every file the app needs (its code, styles, fonts, pictures).

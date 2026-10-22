@@ -1,4 +1,4 @@
-# Sayso (working name)
+# SaySo (working name)
 
 Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment.
 

@@ -1,4 +1,4 @@
-// Sayso: two practice modes a person can use alone, on one shared word list:
+// SaySo: two practice modes a person can use alone, on one shared word list:
 // Hear it, find it and Point and name. (Name it and Sing it needed a helper and were
 // removed on 2026-10-15; they are in the git history.)
 // Plain DOM, no framework, so every line is easy to read and rewrite.
