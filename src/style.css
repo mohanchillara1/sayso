@@ -238,7 +238,8 @@ body[data-mode="start"] .screen { animation: none; }
 .start-logo { width: min(46vw, 184px); aspect-ratio: 1; margin-bottom: 18px; }
 .start-logo svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 10px 18px rgb(46 102 80 / 0.18)); }
 .start-name { font-size: clamp(2.6rem, 12vw, 3.3rem); color: var(--accent); margin: 0; letter-spacing: 0.01em; }
-.start-tag { font-size: 1.15rem; color: var(--soft); margin: 0; }
+.start-tag { font-family: var(--display); font-weight: 500; font-size: clamp(1.2rem, 5.2vw, 1.4rem); color: var(--ink); margin: 4px 0 0; text-wrap: balance; max-width: 22em; }
+.start-sub { font-size: 1rem; color: var(--soft); margin: 0; }
 .start-line { min-height: 1.5em; margin: 18px 0 0; font-size: 1rem; color: var(--soft); }
 .start-dock { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
 .start-go { font-size: 1.45rem; min-height: 80px; }
@@ -246,20 +247,14 @@ body[data-mode="start"] .screen { animation: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .start-logo { animation: logo-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-  .start-logo .corners path { animation: corner-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; transform-box: fill-box; }
-  .start-logo .corners path:nth-child(1) { --dx: -6px; --dy: -6px; }
-  .start-logo .corners path:nth-child(2) { --dx: 6px; --dy: -6px; }
-  .start-logo .corners path:nth-child(3) { --dx: 6px; --dy: 6px; }
-  .start-logo .corners path:nth-child(4) { --dx: -6px; --dy: 6px; }
-  .start-logo .bubble { animation: bubble-in 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) 0.45s both; transform-box: fill-box; transform-origin: 30% 100%; }
-  .start-name, .start-tag { animation: rise 0.5s ease-out 0.6s both; }
+  /* The bubble rises in, then the eye opens once (a slow open, not a blink). */
+  .start-logo .bubble { animation: bubble-in 0.5s cubic-bezier(0.3, 1.3, 0.5, 1) 0.2s both; transform-box: fill-box; transform-origin: 20% 100%; }
+  .start-logo .eye, .start-logo .iris, .start-logo .pupil { animation: eye-open 0.45s ease-out 0.6s both; transform-box: view-box; transform-origin: 64px 55.5px; }
+  .start-name, .start-tag, .start-sub { animation: rise 0.5s ease-out 0.6s both; }
   .start-line, .start-dock { animation: rise 0.45s ease-out 0.85s both; }
 }
 @keyframes logo-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
-@keyframes corner-in { from { opacity: 0; transform: translate(var(--dx), var(--dy)); } to { opacity: 1; transform: none; } }
-@keyframes bubble-in { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
+@keyframes bubble-in { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: none; } }
+@keyframes eye-open { from { transform: scaleY(0.08); } to { transform: none; } }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* Logo options page (?logos) */
-.logo-option { display: grid; gap: 10px; }
-.logo-sizes { display: flex; align-items: end; gap: 18px; }

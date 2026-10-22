@@ -17,7 +17,6 @@ import { findPick } from "./find"
 import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
 import { startScreen } from "./loading"
-import { LOGO_OPTIONS } from "./logo"
 import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
 import { voices, chooseVoice, onVoices, onVoiceBroken, speak } from "./speak"
@@ -38,18 +37,6 @@ function aboutScreen() {
       h("p", { class: "soft small" }, DISCLAIMER),
       picsCredit(),
     ),
-  )
-}
-
-/** The three logo options side by side (open the app with ?logos). */
-function logosScreen() {
-  show("home", () => void homeScreen(),
-    h("h2", {}, "Logo options"),
-    h("p", { class: "soft" }, "Big, phone-icon size and tab size. B is in use."),
-    ...LOGO_OPTIONS.map((o) => h("div", { class: "panel logo-option" },
-      h("div", { class: "logo-sizes" }, ...[160, 60, 24].map((w) => h("img", { src: o.file, width: w, height: w, alt: w === 160 ? o.name : "" }))),
-      h("p", {}, o.name),
-    )),
   )
 }
 
@@ -267,7 +254,6 @@ async function boot() {
   // from the browser ("Add to Home Screen"). Only in the built app: under `npm run dev` it would
   // keep serving old copies of the files being edited.
   if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* the app still works online */ })
-  if (new URLSearchParams(location.search).has("logos")) return logosScreen()
   // The start screen gets the object finder ready behind the logo, then Start goes home.
   startScreen(() => void homeScreen())
 }

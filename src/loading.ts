@@ -12,6 +12,12 @@ import { LOGO_SVG } from "./logo"
 
 const START_ANYWAY_MS = 10_000
 
+// The start screen's lines (dad, 2026-10-21: "can you add a tag line for the start page?"). Swap TAGLINE for another;
+// the ones dad may pick: "Naming practice for people with aphasia." / "Point. Say it. Practice." /
+// "Everyday words, practiced at home." No claim of an effect (no "recover", "heal", "therapy").
+export const TAGLINE = "Word practice for aphasia, at home."
+export const SUBLINE = "Practice naming everyday things." // smaller, under the tagline; "" to drop it
+
 export function startScreen(next: () => void) {
   const mark = h("div", { class: "start-logo" })
   mark.innerHTML = LOGO_SVG
@@ -33,7 +39,8 @@ export function startScreen(next: () => void) {
     h("div", { class: "start" },
       mark,
       h("h1", { class: "start-name" }, "SaySo"),
-      h("p", { class: "start-tag" }, "Practice naming everyday things."),
+      h("p", { class: "start-tag" }, TAGLINE),
+      ...(SUBLINE ? [h("p", { class: "start-sub" }, SUBLINE)] : []),
       line,
     ),
     h("div", { class: "dock start-dock" }, go),
