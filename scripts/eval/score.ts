@@ -1,6 +1,3 @@
-// Scores saved finder guesses (from run-eval.mjs) with the app's own decide().
-//   npx vite-node scripts/eval/score.ts <raw.json> [finder]
-// "Right" = named right, or asked with a right word among the choices.
 import { readFileSync } from "node:fs"
 import { decide, wordFor, type Settings, type Det } from "../../src/camlogic"
 
@@ -12,15 +9,12 @@ const toDets = (xs: { label: string; score: number; box: number[] }[]): Det[] =>
 
 export type Tally = { named: number; asked: number; wrong: number; missed: number; texNamed: number; texAsked: number; pos: number; neg: number; bad: string[] }
 
-/** `pick` chooses the guesses for one photo: one variant, or a strategy over several. */
 export function tally(photos: Photo[], s: Settings, pick: (p: Photo) => Det[] | Det[][]): Tally {
   const t: Tally = { named: 0, asked: 0, wrong: 0, missed: 0, texNamed: 0, texAsked: 0, pos: 0, neg: 0, bad: [] }
   for (const p of photos) {
-    if (p.kind !== "pos" && p.kind !== "neg") continue // "excluded": a duplicate photo
-    // The main set lists finder class names ("cell phone"); count the word the app says for them too.
+    if (p.kind !== "pos" && p.kind !== "neg") continue
     const expect = [...p.expect, ...p.expect.map((e) => wordFor(e) ?? e)]
     const got = pick(p)
-    // A strategy gives several looks: the first look that is not "none" counts (as the app would freeze on it).
     const looks = Array.isArray(got[0]) ? (got as Det[][]) : [got as Det[]]
     let d = decide([], s)
     for (const l of looks) { d = decide(l, s); if (d.kind !== "none") break }
@@ -38,7 +32,6 @@ export function tally(photos: Photo[], s: Settings, pick: (p: Photo) => Det[] | 
   return t
 }
 
-// The settings as they were before 2026-10-13 (the "before" column).
 const LIVE: Record<string, Settings> = {
   "dfine-webgpu": { nameAt: 0.35, askAt: 0.25, blocked: ["keyboard", "laptop"], steady: 2 },
   "mediapipe-gpu": { nameAt: 0.55, askAt: 0.55, blocked: ["keyboard", "cake"], steady: 3 },

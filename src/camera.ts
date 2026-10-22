@@ -1,10 +1,3 @@
-// Point and name: practice with no helper, using the phone camera.
-// The camera picture goes to an object finder that runs inside this page
-// (src/finder.ts, loaded from this website, not a cloud service). When the finder
-// agrees with itself for a few looks in a row, the picture freezes with a box on
-// the object and "What is this?". The person tries to say it, taps "Hear it" to
-// check, and says for themselves whether they got it. If the finder was not sure,
-// "Hear it" first asks which of two or three words it is. The app does not listen.
 import { h, button, show, prompt, picture, guard } from "./ui"
 import { homeScreen } from "./main"
 import { currentEpoch, cancelled } from "./epoch"
@@ -17,11 +10,6 @@ import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 import { pace, showTestInfo } from "./pace"
 
-
-// One camera stream, one video and two work canvases for the whole Point and name visit (2026-10-21: on dad's
-// phone, "Look again" crashed the app; every look opened the camera again and made new canvases, and iPhones
-// free that memory late). The camera turns off when the person leaves Point and name, after a minute on the
-// answer screen, or when the app goes to the background; the next look turns it on again.
 let cam: MediaStream | null = null
 let camVideo: HTMLVideoElement | null = null
 let lastSnap: HTMLCanvasElement | null = null
@@ -45,7 +33,6 @@ function closeCamera() {
   if (camVideo) { camVideo.pause(); camVideo.srcObject = null }
 }
 
-/** Frees the frozen picture of the last look (a canvas holds its memory until it is emptied). */
 function dropSnap() {
   if (lastSnap) { lastSnap.width = lastSnap.height = 0; lastSnap = null }
 }
@@ -53,11 +40,10 @@ function dropSnap() {
 document.addEventListener("visibilitychange", () => { if (document.hidden) closeCamera() })
 
 export function cameraScreen() {
-  closeCamera() // back here from a look or an answer: the camera goes off
+  closeCamera()
   dropSnap()
-  // Start getting the finder ready while the person reads this screen; it can take a while the first time.
   const bar = progressBar()
-  loadFinder(bar.set).catch(() => { /* look() tries again and explains */ })
+  loadFinder(bar.set).catch(() => {})
   show("camera", () => void homeScreen(),
     h("h2", {}, "Point and name"),
     prompt("Hold one thing up to the camera, inside the square. When a yellow box appears, try to say what it is.", "p", "cam-status"),
@@ -74,7 +60,7 @@ async function look() {
   const wrap = h("div", { class: "cam-wrap" }, video)
   const bar = progressBar()
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, bar.el)
-  const ep2 = currentEpoch() // show() moved the epoch; leaving this screen moves it again
+  const ep2 = currentEpoch()
 
   let stream: MediaStream
   try {
@@ -83,10 +69,10 @@ async function look() {
     if (!cancelled(ep2)) status.textContent = "Could not open the camera. Check that this website is allowed to use it, then try again."
     return
   }
-  const stop = () => { if (cam === stream) closeCamera() } // never turn off a newer look's camera
+  const stop = () => { if (cam === stream) closeCamera() }
   if (cancelled(ep2)) return stop()
   if (video.srcObject !== stream) video.srcObject = stream
-  try { await video.play() } catch { /* autoplay with muted video is allowed; ignore */ }
+  try { await video.play() } catch {}
 
   status.textContent = "Getting the object finder ready… The first time can take a minute."
   let finder: Finder
@@ -100,10 +86,9 @@ async function look() {
   if (cancelled(ep2)) return stop()
   bar.el.remove()
   status.textContent = "Looking… hold the phone still."
-  wrap.dataset.finder = finder.name // for tests and the build report
+  wrap.dataset.finder = finder.name
 
-  // What the finder sees, live: its best guess, how sure it is, a dashed box where it is, and what to do.
-  const badge = h("span", { class: "finder-badge", hidden: !showTestInfo() }, finder.short) // test info only (see pace.ts)
+  const badge = h("span", { class: "finder-badge", hidden: !showTestInfo() }, finder.short)
   const liveBox = h("div", { class: "box live", hidden: true })
   wrap.append(liveBox, badge)
   const guessWord = h("b", {}, "…")
@@ -117,10 +102,8 @@ async function look() {
   const hintText = h("span", {}, "")
   const hintEl = h("p", { class: "cam-hint", hidden: true }, hintIc, hintText)
   hintEl.setAttribute("aria-live", "polite")
-  // The square: the finder looks only inside it (dad, 2026-10-19: it kept jumping to things around the room).
   const squareEl = h("div", { class: "square", hidden: true }, h("span", { class: "square-tag" }, "Put the thing in the square"))
   wrap.append(squareEl)
-  // Tap to choose: tapping the picture makes the app look only at that spot (and follow the thing there).
   const lockBox = h("div", { class: "box lock", hidden: true })
   wrap.append(lockBox)
   const tapNote = h("p", { class: "cam-note tap-note" }, "Wrong thing? Tap the one you mean.")
@@ -134,35 +117,28 @@ async function look() {
     unlock.hidden = !b
     lockBox.hidden = !b
     tapNote.textContent = b ? "Looking only where you tapped." : "Wrong thing? Tap the one you mean."
-    for (const hi of histories) hi.length = 0 // a new target: start agreeing again
+    for (const hi of histories) hi.length = 0
     for (const bx of boxes) bx.length = 0
   }
-  video.onclick = (e) => { // onclick, not addEventListener: the same video is used for every look
+  video.onclick = (e) => {
     const r = video.getBoundingClientRect()
     const vw = video.videoWidth, vh = video.videoHeight
     if (!vw || !r.width) return
     const x = ((e.clientX - r.left) / r.width) * vw, y = ((e.clientY - r.top) / r.height) * vh
-    // The smallest guess under the finger, else a spot around it (40% of the picture).
     const under = lastCands.filter((c) => x >= c.box.x && x <= c.box.x + c.box.w && y >= c.box.y && y <= c.box.y + c.box.h)
       .sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]
     setLock(under ? under.box : { x: x - vw * 0.2, y: y - vh * 0.2, w: vw * 0.4, h: vh * 0.4 })
   }
 
-  // Look, decide, repeat. Each look waits for the last one, so a slow phone just looks less often.
-  // With padLook, every other look uses the picture shrunk into a grey frame, which finds things
-  // held close. It freezes when the last few plain looks agree, the last few padded looks
-  // agree, or the last few looks of either kind agree (the quickest: two looks in a row).
-  // A third history holds every look, so a plain look and a padded look that agree also count.
   const histories: (string | null)[][] = [[], [], []]
   const boxes: Box[][] = [[], [], []]
-  // The room: what was already there in the first looks (a lamp, a TV). It loses to a thing that shows up later.
   const room: Box[] = []
   const started = performance.now()
-  const p0 = pace() // read once per camera session (Settings → Slower)
+  const p0 = pace()
   let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0, lastGuessShown = 0
   while (!cancelled(ep2)) {
     await new Promise((r) => requestAnimationFrame(r))
-    if (cam !== stream) { // the camera went off (the app was in the background): start the look again
+    if (cam !== stream) {
       if (!cancelled(ep2)) void look()
       return
     }
@@ -182,13 +158,13 @@ async function look() {
       const cut = cropTo(video, sq, cropCanvas)
       let dets = await finder.detect(padded ? padOut(cut, 0.7, padCanvas) : cut, sq.w, sq.h)
       if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, sq.w, sq.h) }))
-      dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } })) // back to the whole picture
+      dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } }))
       if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
       const view = { w: vw, h: vh, room, lock, area: sq }
       d = decide(dets, finder.settings, view)
       guess = bestGuess(dets, finder.settings, view)
       lastCands = candidates(dets, finder.settings)
-    } catch { /* one bad frame: keep looking */ }
+    } catch {}
     if (cancelled(ep2)) break
     msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
     badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
@@ -200,17 +176,13 @@ async function look() {
     }
     const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
     if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= p0.warmUpMs) {
-      // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
-      // The camera stays on (paused) for "Look again", and goes off after a minute of answering.
       const pause = () => { video.pause(); idleTimer = window.setTimeout(stop, CAMERA_IDLE_MS) }
       return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, pause, ep2)
     }
 
-    // Show the guess and how sure the finder is (100% = sure enough to name it). With Slower, at most every guessEveryMs.
     const showGuess = performance.now() - lastGuessShown >= p0.guessEveryMs
     if (showGuess) lastGuessShown = performance.now()
     const pc = guess ? surePercent(guess.score, finder.settings) : 0
-    // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
     if (showGuess) {
       guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
       fill.style.width = `${pc}%`
@@ -221,18 +193,16 @@ async function look() {
       const p = boxPercent(guess.box, vw, vh)
       Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
     }
-    liveBox.hidden = !guess || !!finder.settings.whole // the square already shows where it looks
-    if (lock && guess) lock = grow(guess.box, 1.3, vw, vh) // follow the tapped thing as it moves
+    liveBox.hidden = !guess || !!finder.settings.whole
+    if (lock && guess) lock = grow(guess.box, 1.3, vw, vh)
     if (lock) {
       const p = boxPercent(lock, vw, vh)
       Object.assign(lockBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
     }
 
-    // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
-    // Hints are about where the thing sits in the square, not in the whole picture.
     const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
     const hint = finder.settings.whole
-      ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show") // no box: nothing to say about where
+      ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show")
       : hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
     if (hint !== shownHint) {
       shownHint = hint
@@ -248,16 +218,13 @@ async function look() {
   stop()
 }
 
-/** How many first looks count as "the room". */
 const ROOM_LOOKS = 3
 
-/** A box made bigger around its middle, kept inside the picture. */
 function grow(b: Box, k: number, w: number, h: number): Box {
   const x = Math.max(0, b.x - (b.w * (k - 1)) / 2), y = Math.max(0, b.y - (b.h * (k - 1)) / 2)
   return { x, y, w: Math.min(w - x, b.w * k), h: Math.min(h - y, b.h * k) }
 }
 
-/** The hints shown (and the short ones spoken) while the camera looks. */
 const HINTS: Record<Hint, { icon: string; text: string; say?: string }> = {
   show: { icon: "✋", text: "Put the thing in the square." },
   far: { icon: "↔️", text: "Nothing found yet. Hold it in the square, a little further away.", say: "Move it back a little." },
@@ -269,13 +236,11 @@ const HINTS: Record<Hint, { icon: string; text: string; say?: string }> = {
 }
 
 function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, pauseCamera: () => void, ep: number) {
-  // Freeze the frame, then pause the camera while the person answers.
   const vw = video.videoWidth, vh = video.videoHeight
   const snap = h("canvas", { class: "snap", width: vw, height: vh }) as HTMLCanvasElement
   snap.getContext("2d")!.drawImage(video, 0, 0, vw, vh)
   lastSnap = snap
   pauseCamera()
-  // Sure: one word. Not sure: the person picks from up to three after trying to say it.
   let word = d.kind === "name" ? d.word : ""
   const p = boxPercent(d.box, vw, vh)
   const box = h("div", { class: "box" })
@@ -360,21 +325,15 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
   else sayPrompt("What is this? Try to say it.")
 }
 
-/**
- * One "Which one is it?" button: the word, with its picture when the word has one (the 82 starter words do).
- * Pictures with words help people with aphasia (icons with labels; see the UI polish report, 2026-10-18).
- */
 const starterFor = (word: string) => STARTER.find((x) => x.text.toLowerCase() === word.toLowerCase())
 const hasPicture = (word: string) => !!starterFor(word)
 function pickButton(word: string, go: () => void, listHasPictures: boolean): HTMLButtonElement {
   const s = starterFor(word)
-  // In a list where some words have a picture, a word without one gets an empty slot so the words line up.
   const pic = s ? picture({ text: s.text, pic: s.pic, img: s.img, createdAt: 0 } as SavedPhrase, "pick-pic") : listHasPictures ? h("span", { class: "pick-pic blank" }) : null
   pic?.setAttribute("aria-hidden", "true")
   return h("button", { class: `btn pick${pic ? "" : " no-pic"}`, type: "button", onclick: guard(go) }, ...(pic ? [pic] : []), h("span", {}, word)) as HTMLButtonElement
 }
 
-/** A thin bar showing how much of the object finder has downloaded (only shown while it downloads). */
 function progressBar() {
   const fill = h("i", {})
   const label = h("span", {}, "")
@@ -393,7 +352,6 @@ function progressBar() {
 }
 
 const lightCanvas = document.createElement("canvas")
-/** Is the camera picture too dark to see things? (average brightness under 0.18, on a small copy) */
 function isDark(video: HTMLVideoElement): boolean {
   lightCanvas.width = 64; lightCanvas.height = 48
   const x = lightCanvas.getContext("2d", { willReadFrequently: true })!

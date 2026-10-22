@@ -1,5 +1,3 @@
-// Build step: copy MediaPipe's WebAssembly files from node_modules into public/,
-// so the object finder loads from this website and not from a CDN.
 import { mkdirSync, copyFileSync } from "node:fs"
 const from = new URL("../node_modules/@mediapipe/tasks-vision/wasm/", import.meta.url)
 const to = new URL("../public/mediapipe/", import.meta.url)

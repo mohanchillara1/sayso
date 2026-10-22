@@ -1,10 +1,3 @@
-// SaySo: two practice modes a person can use alone, on one shared word list:
-// Hear it, find it and Point and name. (Name it and Sing it needed a helper and were
-// removed on 2026-10-15; they are in the git history.)
-// Plain DOM, no framework, so every line is easy to read and rewrite.
-// Screens here: first-run note, home, word list, add/edit a word, progress, settings.
-// Headings in Lexend (wide, open letters, normal spacing), the rest in Atkinson Hyperlegible.
-// Both are served from this website, so the app works offline. Why these: README, "Look".
 import "@fontsource/lexend/500.css"
 import "@fontsource/lexend/600.css"
 import "@fontsource/atkinson-hyperlegible/400.css"
@@ -22,9 +15,6 @@ import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
 import { voices, chooseVoice, onVoices, onVoiceBroken, speak } from "./speak"
 import { voiceLabel } from "./voicelogic"
 
-// ---------- about ----------
-// The first-run "Before you start" screen is gone (dad, 2026-10-21: "remove the beginning disclaimer thing"); what it said,
-// the footer line and the camera note now live here, in small text, on no main screen.
 function aboutScreen() {
   show("home", settingsScreen,
     h("h2", {}, "About SaySo"),
@@ -40,7 +30,6 @@ function aboutScreen() {
   )
 }
 
-// ---------- home ----------
 export async function homeScreen() {
   show("home", null,
     prompt("What do you want to practice?", "p", "hello-row"),
@@ -63,7 +52,6 @@ function modeTile(cls: string, ic: string, title: string, about: string, go: () 
     icon(ic, "mode-ic"), h("span", { class: "mode-text" }, h("b", {}, title), h("span", {}, about)), icon("→", "mode-go"))
 }
 
-/** Adds the starter words (with built-in pictures) that are not in the list yet. */
 export async function addStarters(): Promise<number> {
   const have = await listPhrases().catch(() => [] as SavedPhrase[])
   const add = missingStarters(have.map((p) => p.text))
@@ -72,7 +60,6 @@ export async function addStarters(): Promise<number> {
   return add.length
 }
 
-// ---------- word list (shared by every mode) ----------
 export async function wordsScreen() {
   const items = (await listPhrases().catch(() => [] as SavedPhrase[])).sort((a, b) => b.createdAt - a.createdAt)
   const missing = missingStarters(items.map((p) => p.text)).length
@@ -94,7 +81,6 @@ export async function wordsScreen() {
   )
 }
 
-// ---------- add / edit one word ----------
 export function itemScreen(existing: SavedPhrase | undefined) {
   const back = () => void wordsScreen()
   let photo: Blob | undefined = existing?.photo
@@ -111,7 +97,6 @@ export function itemScreen(existing: SavedPhrase | undefined) {
   const problem = h("p", { class: "warn", hidden: true })
   const complain = (msg: string) => { problem.textContent = msg; problem.hidden = false; text.focus() }
 
-  /** Builds the record from the form; null (with a message shown) if the text is not usable. */
   const build = (): SavedPhrase | null => {
     const clean = prepare(text.value)
     if (clean.problem) { complain(clean.problem); return null }
@@ -144,9 +129,7 @@ export function itemScreen(existing: SavedPhrase | undefined) {
   )
 }
 
-// ---------- progress ----------
 async function progressScreen() {
-  // Older versions also saved Sing it and Name it sessions; those are left out here.
   const rows = (await listSessions().catch(() => [])).filter((s) => s.mode === "find" || s.mode === "camera").sort((a, b) => b.at - a.at).slice(0, 40)
   const detail = (s: (typeof rows)[number]) => {
     if (s.mode === "find") return s.find === "first" ? "found it first time" : s.find === "later" ? "found it on the second try" : "the app showed it"
@@ -163,7 +146,6 @@ async function progressScreen() {
   )
 }
 
-// ---------- settings ----------
 function settingsScreen() {
   const persisted = h("p", { class: "soft" }, "")
   const backupMsg = h("p", { class: "soft" }, "")
@@ -184,14 +166,12 @@ function settingsScreen() {
   )
 }
 
-/** For testers: show which object finder runs and how fast, on the camera picture. Off by default. */
 function testInfoSwitch() {
   const box = h("input", { type: "checkbox", checked: showTestInfo() }) as HTMLInputElement
   box.addEventListener("change", () => setTestInfo(box.checked))
   return h("label", { class: "switch" }, box, h("span", {}, h("b", {}, "Show test info"), h("small", {}, "Shows which object finder runs, and how fast, on the camera picture.")))
 }
 
-/** One plain switch that slows everything timed: speech, the word in Hear it, and Point and name (see pace.ts). Off by default. */
 function slowerSwitch() {
   const box = h("input", { type: "checkbox", checked: isSlower() }) as HTMLInputElement
   box.addEventListener("change", () => { setSlower(box.checked); void speak(box.checked ? "Slower. On." : "Slower. Off.") })
@@ -199,11 +179,6 @@ function slowerSwitch() {
     h("span", {}, h("b", {}, "Slower"), h("small", {}, "Speaks more slowly, and Point and name waits longer before it stops on a thing.")))
 }
 
-/**
- * The voice switcher at the bottom of home (dad, 2026-10-21: "take the thing in the settings from being fine tuning and add it
- * at the bottom of the screen to change the person speaking"). It shows who is speaking; tapping opens the phone's own list:
- * "Auto" (the app chooses) and at most four good voices (speak.ts drops voices that do not speak). A change says "cup".
- */
 function voiceSwitch() {
   const sel = h("select", { class: "voice-select" }) as HTMLSelectElement
   sel.setAttribute("aria-label", "Voice")
@@ -211,14 +186,14 @@ function voiceSwitch() {
   const fill = () => {
     const vs = voices()
     let saved: string | null = null
-    try { saved = localStorage.getItem("sayso.voice") } catch { /* none */ }
-    if (saved && !vs.some((v) => v.name === saved)) saved = null // a voice that is no longer on the list
+    try { saved = localStorage.getItem("sayso.voice") } catch {}
+    if (saved && !vs.some((v) => v.name === saved)) saved = null
     sel.replaceChildren(
-      h("option", { value: "", selected: !saved }, vs[0] ? `Auto: ${label(vs[0])}` : "Auto"), // the name first, so it shows on a narrow phone
+      h("option", { value: "", selected: !saved }, vs[0] ? `Auto: ${label(vs[0])}` : "Auto"),
       ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, label(v))),
     )
     sel.disabled = !vs.length
-    row.hidden = !vs.length // no voices on this device: nothing to switch
+    row.hidden = !vs.length
   }
   const row = h("label", { class: "voice-switch" }, icon("🔊"), h("span", {}, "Voice"), sel)
   sel.addEventListener("change", () => { chooseVoice(sel.value || null); fill(); speak("cup") })
@@ -230,10 +205,8 @@ function voiceSwitch() {
 
 const asDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(b) })
 
-/** Downloads everything (words, photos, history) as one file the family keeps. */
 async function backup(msg: HTMLElement) {
   try {
-    // No .catch(() => []) here: a failed read must not produce a backup that looks fine but is empty.
     const items = await listPhrases()
     const sessions = await listSessions()
     const out = { app: "sayso", saved: new Date().toISOString(), sessions, items: await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined }))) }
@@ -247,17 +220,11 @@ async function backup(msg: HTMLElement) {
   }
 }
 
-// ---------- boot ----------
 async function boot() {
-  try { void navigator.storage?.persist?.() } catch { /* not supported */ }
-  // The service worker (pwa/sw.js) keeps the app's files so it opens offline and can be installed
-  // from the browser ("Add to Home Screen"). Only in the built app: under `npm run dev` it would
-  // keep serving old copies of the files being edited.
-  if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* the app still works online */ })
-  // The start screen gets the object finder ready behind the logo, then Start goes home.
+  try { void navigator.storage?.persist?.() } catch {}
+  if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {})
   startScreen(() => void homeScreen())
 }
 void boot()
 
-// For quick checks in the browser console / headless tests.
 ;(window as unknown as Record<string, unknown>).__sayso = { prepare }

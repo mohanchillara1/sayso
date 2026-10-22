@@ -1,12 +1,3 @@
-/* Look (2026-10-18): calm, warm and plain. One light background on every screen, white cards
-   with a thin border, one green for the main button, no hard shadows, nothing that moves much.
-   Built from published guidance for people with aphasia after a stroke (sources in the README,
-   "Look"), so:
-   - text is 20px (body) and never under 17px, with 1.5 line spacing;
-   - headings are Lexend at a normal size with normal letter spacing; body is Atkinson Hyperlegible;
-   - every button has a word and a line picture, and is at least 64px tall;
-   - ink on any background here is above 4.5:1, borders above 3:1 (checked 2026-10-18);
-   - the only movement is a short fade between screens, off with "reduce motion". */
 :root {
   --bg: #f6f1e8;
   --surface: #ffffff;
@@ -30,7 +21,7 @@
   color: var(--ink);
 }
 * { box-sizing: border-box; }
-[hidden] { display: none !important; } /* some classes set display, which would otherwise beat hidden */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body { --field: var(--bg); margin: 0; background: var(--bg); }
 #app { max-width: 640px; min-height: 100dvh; margin: 0 auto; padding: 8px 16px 0; display: flex; flex-direction: column; }
@@ -41,7 +32,6 @@ h3 { font-size: 1.25rem; }
 p { margin: 0 0 12px; }
 .soft { color: var(--soft); }
 
-/* frame */
 .top { display: flex; align-items: center; justify-content: space-between; min-height: 64px; }
 .brand { font-family: var(--display); font-weight: 600; font-size: 1.3rem; color: var(--accent); }
 .brand.small { font-size: 1.05rem; }
@@ -49,7 +39,6 @@ p { margin: 0 0 12px; }
 @keyframes in { from { opacity: 0; } to { opacity: 1; } }
 .note { font-size: 17px; color: var(--soft); padding: 12px 0 18px; border-top: 1px solid var(--hair); }
 
-/* buttons */
 .btn, .back, .link { font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
@@ -71,14 +60,12 @@ p { margin: 0 0 12px; }
 .dock.two { grid-template-columns: 1fr 1fr; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; }
 
-/* cards */
 .panel { background: var(--surface); border: 1px solid var(--hair); border-radius: 20px; padding: 18px 20px; color: var(--ink); }
 .field { display: grid; gap: 6px; margin-bottom: 14px; font-weight: 700; }
 .field input, .field textarea, .field select { font: inherit; font-weight: 400; font-size: 1.15rem; padding: 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; width: 100%; color: var(--ink); }
 .field input:focus, .field textarea:focus, .field select:focus, .btn:focus-visible, .back:focus-visible, .mode:focus-visible, .item:focus-visible, .speaker:focus-visible, .choice:focus-visible { outline: 4px solid var(--find); outline-offset: 2px; }
 .warn { background: #fbefc9; border: 2px solid #c9a227; border-radius: 12px; padding: 12px 14px; }
 
-/* home: two big choices, each a picture, a name and one line */
 .hello { font-family: var(--display); font-weight: 600; font-size: clamp(1.5rem, 5.5vw, 1.8rem); line-height: 1.25; margin: 4px 0; }
 .modes { display: grid; gap: 14px; }
 .mode { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 128px; padding: 18px 16px; text-align: left; border: 2px solid transparent; border-radius: 22px; cursor: pointer; font: inherit; color: var(--ink); touch-action: manipulation; transition: border-color .15s; }
@@ -96,7 +83,6 @@ p { margin: 0 0 12px; }
 .links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .links .btn { flex-direction: column; gap: 4px; padding: 10px 6px; font-size: 1rem; min-height: 84px; }
 
-/* lists */
 .list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .item { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 10px 14px; text-align: left; border: 1px solid var(--hair); border-radius: var(--radius); background: var(--surface); font: inherit; color: var(--ink); cursor: pointer; }
 .item:active { background: var(--hair); }
@@ -111,11 +97,9 @@ p { margin: 0 0 12px; }
 .screen > h2 { margin-bottom: 0; }
 .status { min-height: 1.5em; font-weight: 700; }
 
-/* Hear it, find it */
 .cue { font-size: clamp(1.6rem, 6vw, 2rem); }
 .count { color: var(--soft); font-weight: 700; margin: -8px 0 0; }
 
-/* progress */
 .log { display: grid; gap: 10px; }
 .log .item { cursor: default; min-height: 0; }
 .log .item:active { background: var(--surface); }
@@ -127,7 +111,6 @@ p { margin: 0 0 12px; }
 .t2 { font-size: clamp(1.5rem, 5.5vw, 1.8rem); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* the two practice screens keep the same light background as home; a thin coloured line on top says which one */
 body[data-mode="find"] .top { box-shadow: 0 3px 0 -1px var(--find); }
 body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .section { font-weight: 700; margin: 8px 0 -4px; font-size: 1.05rem; }
@@ -150,7 +133,6 @@ body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .choices .btn { font-size: 1.3rem; }
 .choice:disabled:not(.right) { opacity: .35; }
 
-/* a speaker on every prompt, a picture on every button, built-in pictures for words (2026-10-13) */
 .prompt { display: flex; align-items: center; gap: 12px; }
 .prompt > :first-child { flex: 1; margin: 0; }
 .prompt.cam-status, .prompt.cue { color: inherit; }
@@ -171,7 +153,6 @@ body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .fine[open] summary { margin-bottom: 12px; }
 .cam-status .say { font-weight: 400; font-size: 1.05rem; text-align: left; }
 
-/* Point and name, live feedback (2026-10-15): the guess, how sure, what to do, which finder */
 .dl { color: var(--soft); font-size: 17px; display: grid; gap: 6px; }
 .dl-bar, .sure-bar { height: 14px; border-radius: 7px; overflow: hidden; background: var(--hair); }
 .dl-bar i, .sure-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
@@ -183,15 +164,12 @@ body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .cam-hint[hidden] { display: none; }
 .cam-wrap .box.live { border-style: dashed; border-width: 4px; box-shadow: none; transition: left .15s, top .15s, width .15s, height .15s; }
 .finder-badge { position: absolute; right: 8px; top: 8px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 13px; padding: 3px 8px; border-radius: 8px; }
-/* tap to choose (2026-10-15) */
 .cam-wrap video { cursor: crosshair; }
-/* The square the thing goes in; outside it is dimmed (the finder only looks inside). */
 .cam-wrap .square { position: absolute; border: 4px solid #fff; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .38); pointer-events: none; }
 .cam-wrap .square-tag { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); background: rgba(0, 0, 0, .7); color: #fff; font-size: 17px; font-weight: 700; padding: 4px 12px; border-radius: 10px; white-space: nowrap; }
 .cam-wrap .box.lock { border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .55); border-radius: 14px; }
 .tap-note { text-align: center; margin: 0; }
 
-/* loading screen (2026-10-18): plain words, three steps, a bar only where the size is known */
 .loading { display: grid; gap: 18px; }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
 .step { display: flex; align-items: center; gap: 14px; font-size: 1.1rem; color: var(--soft); }
@@ -206,33 +184,28 @@ body[data-mode="camera"] .top { box-shadow: 0 3px 0 -1px var(--cam); }
 .loading .dl-bar { height: 16px; }
 .loading .dl { color: var(--ink); font-size: 1.05rem; }
 
-/* Settings → Slower (2026-10-20): one big, plain switch */
 .switch { display: flex; align-items: center; gap: 16px; min-height: 64px; cursor: pointer; }
 .switch input { width: 32px; height: 32px; flex: none; accent-color: var(--accent); }
 .switch b { display: block; font-size: 1.2rem; }
 .switch small { display: block; color: var(--soft); font-size: 1rem; }
-.finder-badge[hidden] { display: none; } /* the badge class sets no display, but be explicit (Learnings 10-18) */
+.finder-badge[hidden] { display: none; }
 
-/* "Which one is it?" buttons with the word's picture (2026-10-20); at most 3 */
 .choices .pick { display: flex; align-items: center; justify-content: flex-start; gap: 14px; min-height: 76px; padding: 8px 18px 8px 10px; text-align: left; }
 .choices .pick.no-pic { justify-content: center; padding: 8px 18px; }
 .pick-pic { width: 56px; height: 56px; flex: none; object-fit: contain; display: grid; place-items: center; border-radius: 12px; background: #fff; }
 .pick-pic.emoji { font-size: 2.4rem; line-height: 1; }
 .pick-pic.blank { background: transparent; }
 
-/* The voice switcher at the bottom of home (2026-10-21): small and quiet, but a full-size tap target. */
 .voice-switch { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding: 6px 4px; color: var(--soft); font-size: 1rem; }
 .voice-switch[hidden] { display: none; }
 .voice-switch .ic { font-size: 1.1rem; }
 .voice-select { flex: 1; min-width: 0; min-height: 48px; font: inherit; font-size: 1rem; color: var(--ink); background: var(--surface); border: 1.5px solid var(--hair); border-radius: 12px; padding: 8px 12px; text-overflow: ellipsis; }
 .voice-select:focus-visible { outline: 4px solid var(--find); outline-offset: 2px; }
 
-/* Clean edges (2026-10-21): no name at the top, no footer. Screens without a Back button start a little lower. */
 .top-space { height: 20px; }
 .small { font-size: 0.9rem; }
 .about p:last-child { margin-bottom: 0; }
 
-/* Start screen (2026-10-21): the logo comes in, then the name, then Start; about 1.3 s in all, nothing flashes. */
 body[data-mode="start"] .screen { animation: none; }
 .start { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding-top: 6vh; }
 .start-logo { width: min(46vw, 184px); aspect-ratio: 1; margin-bottom: 18px; }
@@ -247,7 +220,6 @@ body[data-mode="start"] .screen { animation: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .start-logo { animation: logo-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-  /* The bubble rises in, then the eye opens once (a slow open, not a blink). */
   .start-logo .bubble { animation: bubble-in 0.5s cubic-bezier(0.3, 1.3, 0.5, 1) 0.2s both; transform-box: fill-box; transform-origin: 20% 100%; }
   .start-logo .eye, .start-logo .iris, .start-logo .pupil { animation: eye-open 0.45s ease-out 0.6s both; transform-box: view-box; transform-origin: 64px 55.5px; }
   .start-name, .start-tag, .start-sub { animation: rise 0.5s ease-out 0.6s both; }

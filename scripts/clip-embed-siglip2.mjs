@@ -1,10 +1,3 @@
-// Turns every app word into SigLIP2 numbers (its text half), once, offline. Not part of the app.
-// Same recipe as clip-embed.mjs (3 prompts per word + "nothing" rows, averaged), fp32 text tower.
-// Run from a folder with @huggingface/transformers 4.3.1 installed (it is not an app dependency):
-//   node clip-embed-siglip2.mjs scripts/clip-words.json public/models
-// Optional per word, as in clip-embed.mjs: "as", "mass", "also". "asSig" replaces "as" for SigLIP2 only
-// (straw and magazine pulled pencils and glasses to the wrong word in the SigLIP2 test, 2026-10-19).
-// Writes siglip_words.bin (rows x 768 float32) and siglip_words.json (with the temperature the scorer chose).
 import { AutoTokenizer, SiglipTextModel } from "@huggingface/transformers"
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 const [WORDS, OUT] = process.argv.slice(2)

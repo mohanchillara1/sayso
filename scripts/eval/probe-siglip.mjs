@@ -1,5 +1,3 @@
-// Compares SigLIP2 q4f16 on WebGPU in Chrome with the same model on CPU (onnxruntime-node) and with transformers.js preprocessing.
-// Run with WINDOWS node: node.exe probe-siglip.mjs <app url> <photo dir> <out.json> [n]
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"

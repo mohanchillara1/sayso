@@ -1,12 +1,8 @@
-// Measurement only (not shipped): runs every finder on a photo and on harder versions
-// of it (dark, close-up), plus the fixes we are testing, and returns all guesses.
-// Decisions are scored afterwards by scripts/eval/score.ts with the app's own decide().
 import { FINDERS, mediapipeFinder, type Finder } from "../../src/finder"
 import { brighten, padOut } from "../../src/frameprep"
 
 type Out = { label: string; score: number; box: [number, number, number, number] }
 
-// Low thresholds so the scorer can try any threshold above them.
 const LOW = { nameAt: 0.1, askAt: 0.1, blocked: [], steady: 1 }
 const finders: Record<string, Finder> = {}
 
@@ -23,7 +19,6 @@ async function setup(which: string[]) {
 
 const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
 
-/** The photo as a phone camera would give it: at most 640 px on the long side. */
 function base(img: HTMLImageElement) {
   const k = Math.min(1, 640 / Math.max(img.naturalWidth, img.naturalHeight))
   const c = document.createElement("canvas")
@@ -32,7 +27,6 @@ function base(img: HTMLImageElement) {
   return c
 }
 
-/** Low light: a quarter of the light plus sensor noise (fixed seed so runs repeat). */
 function dark(src: HTMLCanvasElement) {
   const c = document.createElement("canvas"); c.width = src.width; c.height = src.height
   const x = c.getContext("2d")!; x.drawImage(src, 0, 0)
@@ -42,7 +36,6 @@ function dark(src: HTMLCanvasElement) {
   x.putImageData(d, 0, 0); return c
 }
 
-/** Close-up: the middle 55% of the picture, so the object fills the frame or is cut off. */
 function close(src: HTMLCanvasElement) {
   const c = document.createElement("canvas"); c.width = src.width; c.height = src.height
   const w = src.width * 0.55, h = src.height * 0.55
@@ -65,7 +58,6 @@ async function run(dataUrl: string) {
   return out
 }
 
-/** Speed of one finder on a 640 x 480 frame: median ms over n runs. */
 async function speed(name: string, n = 15) {
   const c = document.createElement("canvas"); c.width = 640; c.height = 480
   const x = c.getContext("2d")!; x.fillStyle = "#888"; x.fillRect(0, 0, 640, 480)
@@ -77,7 +69,6 @@ async function speed(name: string, n = 15) {
 Object.assign(window, { evalSetup: setup, evalRun: run, evalSpeed: speed })
 document.title = "finder eval ready"
 
-// --- probe for the SigLIP2 numbers (2026-10-19): run raw pixel tensors through the same WebGPU session
 let probeSession: any, probeOrt: any
 async function probeSetup(file = "siglip2_b16_224_vision_q4.onnx") {
   probeOrt = await import("onnxruntime-web/webgpu")
@@ -85,13 +76,11 @@ async function probeSetup(file = "siglip2_b16_224_vision_q4.onnx") {
   probeSession = await probeOrt.InferenceSession.create(new Uint8Array(bytes), { executionProviders: ["webgpu"], logSeverityLevel: 3 })
   return probeSession.outputNames
 }
-/** pixel tensor given as base64 float32 (1x3x224x224) -> embedding. */
 async function probeRaw(b64: string) {
   const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
   const out = await probeSession.run({ pixel_values: new probeOrt.Tensor("float32", new Float32Array(u.buffer), [1, 3, 224, 224]) })
   return Array.from(out.pooler_output.data as Float32Array)
 }
-/** the app's own canvas preprocessing (smooth = imageSmoothingQuality high) -> {pixels b64, embedding}. */
 async function probeCanvas(dataUrl: string, smooth: boolean) {
   const img = await load(dataUrl)
   const c = document.createElement("canvas"); c.width = c.height = 224
