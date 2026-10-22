@@ -19,8 +19,8 @@ import { warmFinder } from "./finder"
 import { loadingScreen } from "./loading"
 import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
-import { voices, currentVoice, chooseVoice, onVoices, onVoiceBroken, lastBrokenVoice, speak } from "./speak"
-import { voiceLabel, baseName } from "./voicelogic"
+import { voices, chooseVoice, onVoices, onVoiceBroken, speak } from "./speak"
+import { voiceLabel } from "./voicelogic"
 
 const ACK_KEY = "singback.ack"
 
@@ -55,6 +55,7 @@ export async function homeScreen() {
       button("Progress", () => void progressScreen(), "btn", "📈"),
       button("Settings", settingsScreen, "btn", "⚙"),
     ),
+    voiceSwitch(),
   )
   warmFinder()
 }
@@ -179,7 +180,6 @@ function settingsScreen() {
     persisted,
     h("details", { class: "panel fine" },
       h("summary", {}, "Fine-tune (optional)"),
-      voicePicker(),
       testInfoSwitch(),
     ),
     button("About this app", noteScreen, "btn quiet", "ℹ"),
@@ -202,36 +202,32 @@ function slowerSwitch() {
 }
 
 /**
- * Voice choice: "Let the app choose" and at most four good voices (dad, 2026-10-21: "just keep the extra voices
- * to the names"). No novelty voices; a voice that does not speak on this phone is taken off the list (speak.ts).
+ * The voice switcher at the bottom of home (dad, 2026-10-21: "take the thing in the settings from being fine tuning and add it
+ * at the bottom of the screen to change the person speaking"). It shows who is speaking; tapping opens the phone's own list:
+ * "Auto" (the app chooses) and at most four good voices (speak.ts drops voices that do not speak). A change says "cup".
  */
-function voicePicker() {
-  const sel = h("select", {})
+function voiceSwitch() {
+  const sel = h("select", { class: "voice-select" }) as HTMLSelectElement
+  sel.setAttribute("aria-label", "Voice")
   const label = (v: SpeechSynthesisVoice) => voiceLabel({ name: v.name, lang: v.lang, local: v.localService, isDefault: v.default })
   const fill = () => {
     const vs = voices()
-    const now = currentVoice()
     let saved: string | null = null
     try { saved = localStorage.getItem("sayso.voice") } catch { /* none */ }
+    if (saved && !vs.some((v) => v.name === saved)) saved = null // a voice that is no longer on the list
     sel.replaceChildren(
-      h("option", { value: "", selected: !saved }, vs[0] ? `Let the app choose: ${label(vs[0])}` : "Let the app choose"),
+      h("option", { value: "", selected: !saved }, vs[0] ? `Auto: ${label(vs[0])}` : "Auto"), // the name first, so it shows on a narrow phone
       ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, label(v))),
     )
-    if (!vs.length) sel.append(h("option", { value: "", disabled: true }, "No English voices found on this device"))
-    const gone = lastBrokenVoice()
-    note.textContent = (gone ? `The voice "${baseName(gone)}" did not work on this phone, so it is off the list. ` : "") +
-      (now ? `Now using: ${label(now)}${now.localService ? ", on this phone" : ", online: words are sent to the voice service"}.` : "")
+    sel.disabled = !vs.length
+    row.hidden = !vs.length // no voices on this device: nothing to switch
   }
-  const note = h("p", { class: "soft" })
+  const row = h("label", { class: "voice-switch" }, icon("🔊"), h("span", {}, "Voice"), sel)
   sel.addEventListener("change", () => { chooseVoice(sel.value || null); fill(); speak("cup") })
-  onVoices(fill)
+  onVoices(() => { if (sel.isConnected) fill() })
   onVoiceBroken(() => { if (sel.isConnected) fill() })
   fill()
-  return h("div", {},
-    h("label", { class: "field" }, "Voice", sel),
-    note,
-    button("Try the voice", () => void speak("This is the voice. Cup."), "btn", "🔊"),
-  )
+  return row
 }
 
 const asDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(b) })
