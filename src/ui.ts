@@ -6,7 +6,7 @@ import { PICS_CREDIT } from "./starter"
 // Says what we know: meant for use with an SLP, not reviewed by one, not a treatment.
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
-export type Mode = "home" | "find" | "camera"
+export type Mode = "start" | "home" | "find" | "camera"
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
   const el = document.createElement(tag)
@@ -94,10 +94,9 @@ export function show(mode: Mode, back: (() => void) | null, ...nodes: Node[]) {
   hush()
   lastShow = Date.now()
   document.body.dataset.mode = mode
-  const top = h("header", { class: "top" },
-    back ? button("← Back", back, "back") : h("span", { class: "brand" }, "Sayso"),
-    back ? h("span", { class: "brand small" }, "Sayso") : h("span"),
-  )
+  // Clean edges (dad, 2026-10-21: "take out the stuff on the edges so its clean"): no name at the top and no footer.
+  // A screen with a way back gets a Back button; the others start straight with their content.
+  const top = back ? h("header", { class: "top" }, button("← Back", back, "back")) : h("div", { class: "top-space" })
   const main = h("main", { class: "screen" }, ...nodes)
   // One h1 per screen: the first heading becomes the h1 (kept at its old size).
   const first = main.querySelector("h1, h2, .hello")
@@ -105,7 +104,7 @@ export function show(mode: Mode, back: (() => void) | null, ...nodes: Node[]) {
     const one = h("h1", { class: first.className.includes("hello") ? "hello" : "t2" }, ...first.childNodes)
     first.replaceWith(one)
   }
-  app.replaceChildren(top, main, h("footer", { class: "note" }, DISCLAIMER))
+  app.replaceChildren(top, main)
   window.scrollTo(0, 0)
 }
 

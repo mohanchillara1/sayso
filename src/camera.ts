@@ -17,7 +17,6 @@ import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 import { pace, showTestInfo } from "./pace"
 
-const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
 // One camera stream, one video and two work canvases for the whole Point and name visit (2026-10-21: on dad's
 // phone, "Look again" crashed the app; every look opened the camera again and made new canvases, and iPhones
@@ -62,7 +61,6 @@ export function cameraScreen() {
   show("camera", () => void homeScreen(),
     h("h2", {}, "Point and name"),
     prompt("Hold one thing up to the camera, inside the square. When a yellow box appears, try to say what it is.", "p", "cam-status"),
-    h("p", { class: "cam-note" }, NOTE),
     bar.el,
     h("div", { class: "dock" }, button("Start the camera", () => void look(), "btn go", "📷")),
   )
@@ -75,7 +73,7 @@ async function look() {
   const video = camVideo ??= h("video", { muted: true, playsInline: true, autoplay: true }) as HTMLVideoElement
   const wrap = h("div", { class: "cam-wrap" }, video)
   const bar = progressBar()
-  show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, bar.el, h("p", { class: "cam-note" }, NOTE))
+  show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, status, bar.el)
   const ep2 = currentEpoch() // show() moved the epoch; leaving this screen moves it again
 
   let stream: MediaStream

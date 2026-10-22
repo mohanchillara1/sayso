@@ -16,29 +16,40 @@ import { h, button, show, shrinkPhoto, guard, prompt, picture, picUrl, picsCredi
 import { findPick } from "./find"
 import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
-import { loadingScreen } from "./loading"
+import { startScreen } from "./loading"
+import { LOGO_OPTIONS } from "./logo"
 import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
 import { voices, chooseVoice, onVoices, onVoiceBroken, speak } from "./speak"
 import { voiceLabel } from "./voicelogic"
 
-const ACK_KEY = "singback.ack"
-
-// ---------- first run ----------
-function noteScreen() {
-  show("home", null,
-    h("h1", {}, "Before you start"),
-    h("div", { class: "panel" },
-      h("p", { class: "say" }, DISCLAIMER),
+// ---------- about ----------
+// The first-run "Before you start" screen is gone (dad, 2026-10-21: "remove the beginning disclaimer thing"); what it said,
+// the footer line and the camera note now live here, in small text, on no main screen.
+function aboutScreen() {
+  show("home", settingsScreen,
+    h("h2", {}, "About SaySo"),
+    h("div", { class: "panel about" },
       h("p", {}, "Hear it, find it: the phone says a word, you tap the picture."),
       h("p", {}, "Point and name: point the camera at a thing, try to say it, then check yourself."),
       h("p", {}, "You can do both on your own. Nobody else has to check."),
-      h("p", {}, "Photos and notes stay on this phone. No account."),
+      h("p", { class: "soft small" }, "Photos and notes stay on this phone. No account."),
+      h("p", { class: "soft small" }, "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."),
+      h("p", { class: "soft small" }, DISCLAIMER),
+      picsCredit(),
     ),
-    h("div", { class: "dock" }, button("OK, let's start", () => {
-      try { localStorage.setItem(ACK_KEY, "1") } catch { /* ignore */ }
-      void homeScreen()
-    }, "btn go", "✔")),
+  )
+}
+
+/** The three logo options side by side (open the app with ?logos). */
+function logosScreen() {
+  show("home", () => void homeScreen(),
+    h("h2", {}, "Logo options"),
+    h("p", { class: "soft" }, "Big, phone-icon size and tab size. B is in use."),
+    ...LOGO_OPTIONS.map((o) => h("div", { class: "panel logo-option" },
+      h("div", { class: "logo-sizes" }, ...[160, 60, 24].map((w) => h("img", { src: o.file, width: w, height: w, alt: w === 160 ? o.name : "" }))),
+      h("p", {}, o.name),
+    )),
   )
 }
 
@@ -182,7 +193,7 @@ function settingsScreen() {
       h("summary", {}, "Fine-tune (optional)"),
       testInfoSwitch(),
     ),
-    button("About this app", noteScreen, "btn quiet", "ℹ"),
+    button("About this app", aboutScreen, "btn quiet", "ℹ"),
   )
 }
 
@@ -256,10 +267,9 @@ async function boot() {
   // from the browser ("Add to Home Screen"). Only in the built app: under `npm run dev` it would
   // keep serving old copies of the files being edited.
   if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => { /* the app still works online */ })
-  let acked = false
-  try { acked = localStorage.getItem(ACK_KEY) === "1" } catch { /* ignore */ }
-  // The loading screen gets the object finder ready first, then hands over.
-  loadingScreen(() => { if (acked) void homeScreen(); else noteScreen() })
+  if (new URLSearchParams(location.search).has("logos")) return logosScreen()
+  // The start screen gets the object finder ready behind the logo, then Start goes home.
+  startScreen(() => void homeScreen())
 }
 void boot()
 

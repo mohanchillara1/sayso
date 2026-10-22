@@ -1,87 +1,63 @@
-// The first screen (2026-10-18): "Getting ready…" while the object finder for Point and name
-// downloads and sets itself up. The first open can take a minute; later opens take a few seconds.
-// Shows three plain steps. The download step has a real percentage (the server says the file
-// size); setting up on the phone has no knowable progress, so it shows a slow, soft dot, not a
-// spinner. After 10 seconds a quiet "Start now" lets the person go ahead; the finder keeps
-// getting ready in the background and Point and name waits for it as before.
-import { h, button, icon, show } from "./ui"
+// The start screen, on every launch (2026-10-21, dad: "remove the beginning disclaimer thing and then design a nice logo
+// for sayso with a start button and animations"). It replaced the "Getting ready…" screen of 2026-10-18.
+// - The logo comes in calmly, then the name, then one big Start button (about 1.3 seconds in all; nothing flashes, and
+//   with the phone's "reduce motion" setting nothing moves). It is the opening shot of the CAC video.
+// - Behind it, the object finder for Point and name gets ready. The first time, a quiet line under the name shows the
+//   download (a real percentage: finder.ts knows each file's size), then "Setting it up on this phone". Start turns on
+//   when the finder is ready. Hear it, find it does not need the finder, so after 10 seconds Start turns on anyway and
+//   Point and name finishes getting ready by itself (it waits for it, as before).
+import { h, button, show } from "./ui"
 import { loadFinder } from "./finder"
+import { LOGO_SVG } from "./logo"
 
-export function loadingScreen(next: () => void) {
-  const step = (text: string) => {
-    const mark = h("span", { class: "mark" })
-    const el = h("li", { class: "step" }, mark, h("span", {}, text))
-    const set = (state: "wait" | "now" | "done") => {
-      el.dataset.state = state
-      mark.replaceChildren(state === "done" ? icon("✔") : "")
-    }
-    set("wait")
-    return { el, set }
-  }
-  const app = step("Opening the app")
-  const fetchStep = step("Getting the object finder")
-  const setup = step("Setting it up on this phone")
+const START_ANYWAY_MS = 10_000
 
-  const fill = h("i", {})
-  const pctText = h("span", {}, "")
-  const bar = h("div", { class: "dl", hidden: true }, h("div", { class: "dl-bar" }, fill), pctText)
-  bar.setAttribute("role", "progressbar")
-  bar.setAttribute("aria-valuemin", "0")
-  bar.setAttribute("aria-valuemax", "100")
-
-  const later = h("div", { class: "dock flat", hidden: true },
-    h("p", { class: "soft" }, "You can start now. Point and name will finish getting ready by itself."),
-    button("Start now", () => finish(), "btn quiet", "→"),
-  )
+export function startScreen(next: () => void) {
+  const mark = h("div", { class: "start-logo" })
+  mark.innerHTML = LOGO_SVG
+  mark.setAttribute("aria-hidden", "true")
+  const line = h("p", { class: "start-line" }, "")
+  line.setAttribute("aria-live", "polite")
+  const go = button("Start", () => finish(), "btn go start-go", "▶")
+  go.disabled = true
 
   let over = false
   const finish = () => {
-    if (over) return
+    if (over || go.disabled) return
     over = true
-    clearTimeout(skipTimer)
+    clearTimeout(anyway)
     next()
   }
 
-  show("home", null,
-    h("div", { class: "loading" },
-      h("h1", {}, "Getting ready…"),
-      h("p", {}, "The first time can take a minute. After that, the app opens in a few seconds."),
-      h("ol", { class: "steps" }, app.el, fetchStep.el, setup.el),
-      bar,
-      later,
+  show("start", null,
+    h("div", { class: "start" },
+      mark,
+      h("h1", { class: "start-name" }, "SaySo"),
+      h("p", { class: "start-tag" }, "Practice naming everyday things."),
+      line,
     ),
+    h("div", { class: "dock start-dock" }, go),
   )
-  document.title = "Sayso: getting ready"
 
-  // Step 1 is done once this code runs: the page, its words and its fonts are here.
-  void document.fonts?.ready.then(() => app.set("done"))
-  if (!document.fonts) app.set("done")
-  fetchStep.set("now")
-
-  let downloaded = false
-  const onProgress = (part: number) => {
-    if (over || downloaded) return
-    const pc = Math.round(part * 100)
-    bar.hidden = pc >= 100
-    fill.style.width = `${pc}%`
-    bar.setAttribute("aria-valuenow", String(pc))
-    pctText.textContent = `${pc}% downloaded`
-    if (pc >= 100) {
-      downloaded = true
-      fetchStep.set("done")
-      setup.set("now")
-    }
+  // What the quiet line says. Empty once the finder is ready: the screen is just the logo and Start.
+  let phase: "starting" | "download" | "setup" | "ready" = "starting"
+  let pc = 0, waited = false
+  const render = () => {
+    if (over) return
+    const doing = { starting: "Getting ready…", download: `Getting Point and name ready: ${pc}%`, setup: "Setting it up on this phone…", ready: "" }[phase]
+    line.textContent = doing && waited ? `${doing.replace(/[.…]$/, "")}. You can start now.` : doing
+    go.disabled = !(phase === "ready" || waited)
   }
 
-  const skipTimer = setTimeout(() => { if (!over) later.hidden = false }, 10_000)
-  loadFinder(onProgress)
-    .then(() => {
-      if (over) return
-      app.set("done"); fetchStep.set("done"); setup.set("done")
-      bar.hidden = true
-      setTimeout(finish, 700) // a moment to see all three ticks
-    })
-    // No finder on this phone: go on anyway. Point and name explains and tries again.
-    .catch(() => finish())
-    .finally(() => { document.title = "Sayso" })
+  const anyway = setTimeout(() => { waited = true; render() }, START_ANYWAY_MS)
+  // finder.ts calls this with 1 at once when the file is already on the phone, so then it goes straight to "setup".
+  loadFinder((part) => {
+    pc = Math.round(part * 100)
+    phase = pc >= 100 ? "setup" : "download"
+    render()
+  })
+    .then(() => { phase = "ready"; render() })
+    // No finder on this phone: start anyway. Point and name explains and tries again.
+    .catch(() => { phase = "ready"; render() })
+  render()
 }
