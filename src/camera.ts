@@ -31,6 +31,9 @@ let idleTimer = 0
 const cropCanvas = document.createElement("canvas")
 const padCanvas = document.createElement("canvas")
 const CAMERA_IDLE_MS = 60_000
+// Ends when the running look's loop has really stopped (it may be in the middle of a look when the person leaves).
+// A new look waits for it, so two looks never run the finder at the same time.
+let loopEnded: Promise<void> = Promise.resolve()
 
 async function openCamera(): Promise<MediaStream> {
   clearTimeout(idleTimer)
@@ -161,96 +164,108 @@ async function look() {
   const boxes: Box[][] = [[], [], []]
   // The room: what was already there in the first looks (a lamp, a TV). It loses to a thing that shows up later.
   const room: Box[] = []
-  const started = performance.now()
-  const p0 = pace() // read once per camera session (Settings → Slower)
-  let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0, lastGuessShown = 0
-  while (!cancelled(ep2)) {
-    await new Promise((r) => requestAnimationFrame(r))
-    if (cam !== stream) { // the camera went off (the app was in the background): start the look again
-      if (!cancelled(ep2)) void look()
-      return
-    }
-    if (video.readyState < 2) continue
-    const vw = video.videoWidth, vh = video.videoHeight
-    const sq = middleSquare(vw, vh)
-    if (squareEl.hidden) {
-      const p = boxPercent(sq, vw, vh)
-      Object.assign(squareEl.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
-      squareEl.hidden = false
-    }
-    const padded = !!finder.settings.padLook && n++ % 2 === 1
-    let d: Decision = { kind: "none" }
-    let guess: ReturnType<typeof bestGuess> = null
-    const t0 = performance.now()
-    try {
-      const cut = cropTo(video, sq, cropCanvas)
-      let dets = await finder.detect(padded ? padOut(cut, 0.7, padCanvas) : cut, sq.w, sq.h)
-      if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, sq.w, sq.h) }))
-      dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } })) // back to the whole picture
-      if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
-      const view = { w: vw, h: vh, room, lock, area: sq }
-      d = decide(dets, finder.settings, view)
-      guess = bestGuess(dets, finder.settings, view)
-      lastCands = candidates(dets, finder.settings)
-      crumbFrame()
-    } catch (e) { crumbError(e) /* one bad frame: keep looking */ }
-    if (cancelled(ep2)) break
-    msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
-    badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
-    const steady = finder.settings.steady + p0.extraSteadyLooks
-    for (const k of [padded ? 1 : 0, 2]) {
-      histories[k].push(decisionKey(d))
-      boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
-      if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
-    }
-    const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
-    if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= p0.warmUpMs) {
-      // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
-      // The camera stays on (paused) for "Look again", and goes off after a minute of answering.
-      const pause = () => { video.pause(); idleTimer = window.setTimeout(stop, CAMERA_IDLE_MS) }
-      return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, pause, ep2)
-    }
-
-    // Show the guess and how sure the finder is (100% = sure enough to name it). With Slower, at most every guessEveryMs.
-    const showGuess = performance.now() - lastGuessShown >= p0.guessEveryMs
-    if (showGuess) lastGuessShown = performance.now()
-    const pc = guess ? surePercent(guess.score, finder.settings) : 0
-    // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
-    if (showGuess) {
-      guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
-      fill.style.width = `${pc}%`
-      pct.textContent = `${pc}%`
-      meter.setAttribute("aria-valuenow", String(pc))
-    }
-    if (guess) {
-      const p = boxPercent(guess.box, vw, vh)
-      Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
-    }
-    liveBox.hidden = !guess || !!finder.settings.whole // the square already shows where it looks
-    if (lock && guess) lock = grow(guess.box, 1.3, vw, vh) // follow the tapped thing as it moves
-    if (lock) {
-      const p = boxPercent(lock, vw, vh)
-      Object.assign(lockBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
-    }
-
-    // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
-    // Hints are about where the thing sits in the square, not in the whole picture.
-    const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
-    const hint = finder.settings.whole
-      ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show") // no box: nothing to say about where
-      : hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
-    if (hint !== shownHint) {
-      shownHint = hint
-      hintIc.textContent = HINTS[hint].icon
-      hintText.textContent = HINTS[hint].text
-      hintEl.hidden = false
-    }
-    if (HINTS[hint].say && performance.now() - lastSaid > p0.hintEveryMs && performance.now() - started > 1500) {
-      lastSaid = performance.now()
-      sayPrompt(HINTS[hint].say!)
-    }
+  await loopEnded
+  if (cancelled(ep2)) return stop()
+  let endLoop!: () => void
+  loopEnded = new Promise((r) => { endLoop = r })
+  try {
+    return await lookLoop()
+  } finally {
+    endLoop()
   }
-  stop()
+
+  async function lookLoop() {
+    const started = performance.now()
+    const p0 = pace() // read once per camera session (Settings → Slower)
+    let shownHint: Hint | null = null, lastSaid = 0, n = 0, looks = 0, msAvg = 0, lastGuessShown = 0
+    while (!cancelled(ep2)) {
+      await new Promise((r) => requestAnimationFrame(r))
+      if (cam !== stream) { // the camera went off (the app was in the background): start the look again
+        if (!cancelled(ep2)) void look()
+        return
+      }
+      if (video.readyState < 2) continue
+      const vw = video.videoWidth, vh = video.videoHeight
+      const sq = middleSquare(vw, vh)
+      if (squareEl.hidden) {
+        const p = boxPercent(sq, vw, vh)
+        Object.assign(squareEl.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+        squareEl.hidden = false
+      }
+      const padded = !!finder.settings.padLook && n++ % 2 === 1
+      let d: Decision = { kind: "none" }
+      let guess: ReturnType<typeof bestGuess> = null
+      const t0 = performance.now()
+      try {
+        const cut = cropTo(video, sq, cropCanvas)
+        let dets = await finder.detect(padded ? padOut(cut, 0.7, padCanvas) : cut, sq.w, sq.h)
+        if (padded) dets = dets.map((x) => ({ ...x, box: unpadBox(x.box, sq.w, sq.h) }))
+        dets = dets.map((x) => ({ ...x, box: { ...x.box, x: x.box.x + sq.x, y: x.box.y + sq.y } })) // back to the whole picture
+        if (++looks <= ROOM_LOOKS) room.push(...candidates(dets, finder.settings).map((c) => c.box))
+        const view = { w: vw, h: vh, room, lock, area: sq }
+        d = decide(dets, finder.settings, view)
+        guess = bestGuess(dets, finder.settings, view)
+        lastCands = candidates(dets, finder.settings)
+        crumbFrame()
+      } catch (e) { crumbError(e) /* one bad frame: keep looking */ }
+      if (cancelled(ep2)) break
+      msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
+      badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`
+      const steady = finder.settings.steady + p0.extraSteadyLooks
+      for (const k of [padded ? 1 : 0, 2]) {
+        histories[k].push(decisionKey(d))
+        boxes[k].push(d.kind === "none" ? { x: 0, y: 0, w: 0, h: 0 } : d.box)
+        if (histories[k].length > 20) { histories[k].shift(); boxes[k].shift() }
+      }
+      const agreed = [padded ? 1 : 0, 2].find((k) => steadyLabel(histories[k], steady) === decisionKey(d))
+      if (d.kind !== "none" && agreed !== undefined && performance.now() - started >= p0.warmUpMs) {
+        // The box drawn is the average over the agreeing looks, so it does not sit on one shaky frame.
+        // The camera stays on (paused) for "Look again", and goes off after a minute of answering.
+        const pause = () => { video.pause(); idleTimer = window.setTimeout(stop, CAMERA_IDLE_MS) }
+        return found(video, { ...d, box: meanBox(boxes[agreed].slice(-steady)) }, pause, ep2)
+      }
+
+      // Show the guess and how sure the finder is (100% = sure enough to name it). With Slower, at most every guessEveryMs.
+      const showGuess = performance.now() - lastGuessShown >= p0.guessEveryMs
+      if (showGuess) lastGuessShown = performance.now()
+      const pc = guess ? surePercent(guess.score, finder.settings) : 0
+      // Too unsure to even ask: say so, not a word (dad's test: "glasses" showed at 43% while he held a pen).
+      if (showGuess) {
+        guessWord.textContent = !guess ? "nothing yet" : guess.score < askLevel(guess.word, finder.settings) ? "not sure yet" : guess.word
+        fill.style.width = `${pc}%`
+        pct.textContent = `${pc}%`
+        meter.setAttribute("aria-valuenow", String(pc))
+      }
+      if (guess) {
+        const p = boxPercent(guess.box, vw, vh)
+        Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+      }
+      liveBox.hidden = !guess || !!finder.settings.whole // the square already shows where it looks
+      if (lock && guess) lock = grow(guess.box, 1.3, vw, vh) // follow the tapped thing as it moves
+      if (lock) {
+        const p = boxPercent(lock, vw, vh)
+        Object.assign(lockBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+      }
+
+      // Tell the person what to do. A spoken hint at most every 5 seconds, so it does not nag.
+      // Hints are about where the thing sits in the square, not in the whole picture.
+      const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
+      const hint = finder.settings.whole
+        ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show") // no box: nothing to say about where
+        : hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
+      if (hint !== shownHint) {
+        shownHint = hint
+        hintIc.textContent = HINTS[hint].icon
+        hintText.textContent = HINTS[hint].text
+        hintEl.hidden = false
+      }
+      if (HINTS[hint].say && performance.now() - lastSaid > p0.hintEveryMs && performance.now() - started > 1500) {
+        lastSaid = performance.now()
+        sayPrompt(HINTS[hint].say!)
+      }
+    }
+    stop()
+  }
 }
 
 /** How many first looks count as "the room". */

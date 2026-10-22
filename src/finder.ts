@@ -165,6 +165,8 @@ async function pictureFinder(m: PictureModel): Promise<Finder> {
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!
   if (m.smooth) ctx.imageSmoothingQuality = "high"
   const pixels = new Float32Array(3 * SIZE * SIZE)
+  // One input for every look: the tensor wraps `pixels`, which each look overwrites (no new buffer per picture).
+  const input = new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE])
   const recent: Float32Array[] = [] // the last few looks, averaged so one odd frame does not decide
   let lastAt = 0
   return {
@@ -181,7 +183,7 @@ async function pictureFinder(m: PictureModel): Promise<Finder> {
         pixels[i + n] = (rgba[i * 4 + 1] / 255 - m.mean) / m.std
         pixels[i + 2 * n] = (rgba[i * 4 + 2] / 255 - m.mean) / m.std
       }
-      const out = await session.run({ pixel_values: new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE]) })
+      const out = await session.run({ pixel_values: input })
       const v = out[m.output].data as Float32Array
       let norm = 0
       for (let j = 0; j < D; j++) norm += v[j] * v[j]
@@ -192,6 +194,7 @@ async function pictureFinder(m: PictureModel): Promise<Finder> {
       let sum = 0
       for (let r = 0; r < R; r++) { p[r] = Math.exp(p[r] - top); sum += p[r] }
       for (let r = 0; r < R; r++) p[r] /= sum
+      for (const t of Object.values(out)) t.dispose() // done with the model's answer: free it now, not whenever the browser gets to it
       const now = performance.now()
       if (now - lastAt > 1000 || frame instanceof HTMLImageElement) recent.length = 0 // a new look, not the same scene
       lastAt = now
@@ -243,6 +246,7 @@ async function dfineFinder(): Promise<Finder> {
   canvas.width = canvas.height = SIZE
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!
   const pixels = new Float32Array(3 * SIZE * SIZE)
+  const input = new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE]) // one input for every look
   return {
     name: "D-FINE small (Objects365), WebGPU",
     short: "D-FINE",
@@ -257,7 +261,7 @@ async function dfineFinder(): Promise<Finder> {
         pixels[i + n] = rgba[i * 4 + 1] / 255
         pixels[i + 2 * n] = rgba[i * 4 + 2] / 255
       }
-      const out = await session.run({ pixel_values: new ort.Tensor("float32", pixels, [1, 3, SIZE, SIZE]) })
+      const out = await session.run({ pixel_values: input })
       const logits = out.logits.data as Float32Array // 300 guesses x 366 kinds
       const boxes = out.pred_boxes.data as Float32Array // 300 x (centre x, centre y, width, height), 0 to 1
       const kinds = labels.length
@@ -276,6 +280,7 @@ async function dfineFinder(): Promise<Finder> {
         const [cx, cy, bw, bh] = boxes.subarray(q * 4, q * 4 + 4)
         dets.push({ label: labels[best], score, box: { x: (cx - bw / 2) * w, y: (cy - bh / 2) * h, w: bw * w, h: bh * h } })
       }
+      for (const t of Object.values(out)) t.dispose()
       return dets
     },
   }
