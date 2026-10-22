@@ -16,6 +16,7 @@ import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGu
 import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 import { pace, showTestInfo } from "./pace"
+import { crumbLook, crumbFrame, crumbError } from "./crumb"
 
 const NOTE = "The camera picture stays on this phone. Nothing is sent anywhere. The first time, the app downloads its object finder (up to about 70 MB) from this website."
 
@@ -103,6 +104,7 @@ async function look() {
   bar.el.remove()
   status.textContent = "Looking… hold the phone still."
   wrap.dataset.finder = finder.name // for tests and the build report
+  crumbLook(finder.short)
 
   // What the finder sees, live: its best guess, how sure it is, a dashed box where it is, and what to do.
   const badge = h("span", { class: "finder-badge", hidden: !showTestInfo() }, finder.short) // test info only (see pace.ts)
@@ -190,7 +192,8 @@ async function look() {
       d = decide(dets, finder.settings, view)
       guess = bestGuess(dets, finder.settings, view)
       lastCands = candidates(dets, finder.settings)
-    } catch { /* one bad frame: keep looking */ }
+      crumbFrame()
+    } catch (e) { crumbError(e) /* one bad frame: keep looking */ }
     if (cancelled(ep2)) break
     msAvg = msAvg ? msAvg * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0
     badge.textContent = `${finder.short} · ${Math.round(msAvg)} ms`

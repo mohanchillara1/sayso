@@ -21,6 +21,7 @@ import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
 import { voices, currentVoice, chooseVoice, onVoices, onVoiceBroken, lastBrokenVoice, speak } from "./speak"
 import { voiceLabel, baseName } from "./voicelogic"
+import { lastCrumb, stoppedEarly, describeCrumb } from "./crumb"
 
 const ACK_KEY = "singback.ack"
 
@@ -43,6 +44,12 @@ function noteScreen() {
 }
 
 // ---------- home ----------
+/** Test info only: if the last visit stopped by itself during Point and name, say where (crumb.ts). */
+function crumbLine(): HTMLElement[] {
+  const c = lastCrumb()
+  return showTestInfo() && stoppedEarly(c) ? [h("p", { class: "soft crumb" }, describeCrumb(c))] : []
+}
+
 export async function homeScreen() {
   show("home", null,
     prompt("What do you want to practice?", "p", "hello-row"),
@@ -55,6 +62,7 @@ export async function homeScreen() {
       button("Progress", () => void progressScreen(), "btn", "📈"),
       button("Settings", settingsScreen, "btn", "⚙"),
     ),
+    ...crumbLine(),
   )
   warmFinder()
 }
