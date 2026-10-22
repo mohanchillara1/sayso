@@ -2,7 +2,7 @@
 // which is what lets a phone "install" it from the browser's "Add to Home Screen".
 // vite.config.ts copies this file into the build as sw.js and fills in the two values below:
 // the build's version, and every file the app needs (its code, styles, fonts, pictures).
-const VERSION = "c94fb7c6ea"
+const VERSION = "38c6b6b291"
 const FILES = [
  "./",
  "index.html",
@@ -56,8 +56,8 @@ const FILES = [
  "assets/atkinson-hyperlegible-latin-ext-400-normal-DRk46D-x.woff2",
  "assets/atkinson-hyperlegible-latin-ext-700-normal-BoVPHkS0.woff2",
  "assets/atkinson-hyperlegible-latin-ext-700-normal-CKkU2Dpt.woff",
+ "assets/index-7ufmtSHR.js",
  "assets/index-DGW0kFQr.css",
- "assets/index-xwuszHzK.js",
  "assets/lexend-latin-500-normal-D9x1QWTH.woff",
  "assets/lexend-latin-500-normal-Dl-X5nog.woff2",
  "assets/lexend-latin-600-normal-DSBzZxpA.woff",
