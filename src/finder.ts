@@ -16,6 +16,7 @@
 // The self-test matters: on the GPU, some model versions (int8 on MediaPipe, fp16 on
 // WebGPU) gave wrong or empty answers without any error in our tests (2026-10-09).
 import { decide, COCO_HOME, type Det, type Settings } from "./camlogic"
+import { isAppleMobile, finderOrder } from "./device"
 
 export type Frame = HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
 export type Finder = {
@@ -348,8 +349,8 @@ export function loadFinder(onProgress?: (part: number) => void): Promise<Finder>
       let last: unknown
       // Testing aid: ?finder=<name> tries only that finder (for example ?finder=mobileclip-cpu).
       const only = new URLSearchParams(location.search).get("finder")
-      for (const { name, make } of FINDERS) {
-        if (only && name !== only) continue
+      const order = only ? [only] : finderOrder(FINDERS.map((f) => f.name), isAppleMobile(navigator.userAgent, navigator.maxTouchPoints ?? 0))
+      for (const { make } of order.flatMap((n) => FINDERS.filter((f) => f.name === n))) {
         try {
           return await selfTest(await make())
         } catch (e) {
