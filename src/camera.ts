@@ -1,11 +1,11 @@
-import { h, button, show, prompt, picture, guard } from "./ui"
+import { h, button, show, prompt, picture, guard, toJpeg } from "./ui"
 import { homeScreen } from "./main"
 import { currentEpoch, cancelled } from "./epoch"
 import { saveSession, savePhrase, listPhrases, type SavedPhrase } from "./db"
 import { STARTER } from "./starter"
 import { prepare } from "./text"
 import { speak, sayPrompt } from "./speak"
-import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, type Decision, type Box, type Hint, type Cand } from "./camlogic"
+import { decide, decisionKey, steadyLabel, boxPercent, cropRect, meanBox, bestGuess, candidates, surePercent, hintFor, askLevel, contains, type Decision, type Box, type Hint, type Cand } from "./camlogic"
 import { padOut, unpadBox, meanLight, middleSquare, cropTo } from "./frameprep"
 import { loadFinder, type Finder } from "./finder"
 import { pace, showTestInfo } from "./pace"
@@ -125,8 +125,7 @@ async function look() {
     const vw = video.videoWidth, vh = video.videoHeight
     if (!vw || !r.width) return
     const x = ((e.clientX - r.left) / r.width) * vw, y = ((e.clientY - r.top) / r.height) * vh
-    const under = lastCands.filter((c) => x >= c.box.x && x <= c.box.x + c.box.w && y >= c.box.y && y <= c.box.y + c.box.h)
-      .sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]
+    const under = lastCands.filter((c) => contains(c.box, x, y)).sort((a, b) => a.box.w * a.box.h - b.box.w * b.box.h)[0]
     setLock(under ? under.box : { x: x - vw * 0.2, y: y - vh * 0.2, w: vw * 0.4, h: vh * 0.4 })
   }
 
@@ -146,8 +145,7 @@ async function look() {
     const vw = video.videoWidth, vh = video.videoHeight
     const sq = middleSquare(vw, vh)
     if (squareEl.hidden) {
-      const p = boxPercent(sq, vw, vh)
-      Object.assign(squareEl.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+      place(squareEl, sq, vw, vh)
       squareEl.hidden = false
     }
     const padded = !!finder.settings.padLook && n++ % 2 === 1
@@ -189,21 +187,19 @@ async function look() {
       pct.textContent = `${pc}%`
       meter.setAttribute("aria-valuenow", String(pc))
     }
-    if (guess) {
-      const p = boxPercent(guess.box, vw, vh)
-      Object.assign(liveBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
-    }
+    if (guess) place(liveBox, guess.box, vw, vh)
     liveBox.hidden = !guess || !!finder.settings.whole
     if (lock && guess) lock = grow(guess.box, 1.3, vw, vh)
-    if (lock) {
-      const p = boxPercent(lock, vw, vh)
-      Object.assign(lockBox.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
-    }
+    if (lock) place(lockBox, lock, vw, vh)
 
-    const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
-    const hint = finder.settings.whole
-      ? (isDark(video) ? "light" : guess && guess.score >= askLevel(guess.word, finder.settings) ? "still" : "show")
-      : hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
+    let hint: Hint
+    if (finder.settings.whole) {
+      const sure = !!guess && guess.score >= askLevel(guess.word, finder.settings)
+      hint = isDark(video) ? "light" : sure ? "still" : "show"
+    } else {
+      const inSquare = guess ? { score: guess.score, box: { ...guess.box, x: guess.box.x - sq.x, y: guess.box.y - sq.y } } : null
+      hint = hintFor(inSquare, sq.w, sq.h, isDark(video), finder.settings, performance.now() - started)
+    }
     if (hint !== shownHint) {
       shownHint = hint
       hintIc.textContent = HINTS[hint].icon
@@ -219,6 +215,13 @@ async function look() {
 }
 
 const ROOM_LOOKS = 3
+
+function place(el: HTMLElement, box: Box, vw: number, vh: number) {
+  const p = boxPercent(box, vw, vh)
+  Object.assign(el.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+}
+
+const lookAgainButton = (cls: string) => button("Look again", () => void look(), cls, "📷")
 
 function grow(b: Box, k: number, w: number, h: number): Box {
   const x = Math.max(0, b.x - (b.w * (k - 1)) / 2), y = Math.max(0, b.y - (b.h * (k - 1)) / 2)
@@ -242,9 +245,8 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
   lastSnap = snap
   pauseCamera()
   let word = d.kind === "name" ? d.word : ""
-  const p = boxPercent(d.box, vw, vh)
   const box = h("div", { class: "box" })
-  Object.assign(box.style, { left: `${p.left}%`, top: `${p.top}%`, width: `${p.width}%`, height: `${p.height}%` })
+  place(box, d.box, vw, vh)
   const tag = h("div", { class: "tag" }, "What is this?")
   const wrap = h("div", { class: "cam-wrap" }, snap, box, tag)
   const status = h("p", { class: "cam-status" }, "Try to say it. Then tap Hear it to check.")
@@ -265,10 +267,7 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
     }
     status.textContent = r === "got" ? "Saved: you got it." : "Saved. Keep practicing this one."
     sayPrompt(r === "got" ? "Well done." : "OK. Keep practicing.")
-    dock.replaceChildren(
-      button("Save to my words", () => void keep(), "btn", "＋"),
-      button("Look again", () => void look(), "btn go", "📷"),
-    )
+    dock.replaceChildren(button("Save to my words", () => void keep(), "btn", "＋"), lookAgainButton("btn go"))
   }
 
   let kept = false
@@ -280,10 +279,10 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
       const c = cropRect(d.box, vw, vh)
       const cut = h("canvas", { width: c.w, height: c.h }) as HTMLCanvasElement
       cut.getContext("2d")!.drawImage(snap, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h)
-      const photo = await new Promise<Blob>((res, rej) => cut.toBlob((b) => (b ? res(b) : rej(new Error("photo"))), "image/jpeg", 0.85))
+      const photo = await toJpeg(cut, 0.85)
       await savePhrase({ text: clean.text, createdAt: Date.now(), photo })
       kept = true
-      dock.replaceChildren(button("Look again", () => void look(), "btn go", "📷"))
+      dock.replaceChildren(lookAgainButton("btn go"))
       status.textContent = have
         ? `Saved another "${clean.text}" to your words. Rename or remove it in My words.`
         : `Saved "${clean.text}" to your words with this photo. You can rename it in My words.`
@@ -317,12 +316,13 @@ function found(video: HTMLVideoElement, d: Exclude<Decision, { kind: "none" }>, 
     )
   }
 
-  dock.replaceChildren(button("Hear it", choose, "btn go", "🔊"), button("Look again", () => void look(), "btn quiet", "📷"))
+  dock.replaceChildren(button("Hear it", choose, "btn go", "🔊"), lookAgainButton("btn quiet"))
   if (cancelled(ep)) return
   show("camera", cameraScreen, h("h2", {}, "Point and name"), wrap, answer, status, dock)
+  const ask = () => sayPrompt("What is this? Try to say it.")
   const after = pace().promptAfterMs
-  if (after) setTimeout(() => { if (!cancelled(ep)) sayPrompt("What is this? Try to say it.") }, after)
-  else sayPrompt("What is this? Try to say it.")
+  if (after) setTimeout(() => { if (!cancelled(ep)) ask() }, after)
+  else ask()
 }
 
 const starterFor = (word: string) => STARTER.find((x) => x.text.toLowerCase() === word.toLowerCase())

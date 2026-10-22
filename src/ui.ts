@@ -2,9 +2,10 @@ import { stopAll } from "./epoch"
 import { sayPrompt, hush } from "./speak"
 import type { SavedPhrase } from "./db"
 import { PICS_CREDIT } from "./starter"
+
 export const DISCLAIMER = "Meant to be used with a speech-language pathologist's guidance. Not reviewed by one yet. Not a treatment."
 
-export type Mode = "start" | "home" | "find" | "camera"
+type Mode = "start" | "home" | "find" | "camera"
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { class?: string } = {}, ...kids: (Node | string)[]) {
   const el = document.createElement(tag)
@@ -55,10 +56,16 @@ export function icon(key: string, cls = "ic"): HTMLElement {
 export const button = (label: string, onClick: () => void, cls = "btn", ic?: string) =>
   h("button", { class: cls, type: "button", onclick: guard(onClick) }, ...(ic ? [icon(ic), " "] : []), label)
 
+export function speakerButton(label: string, say: () => void) {
+  const b = h("button", { class: "speaker", type: "button", onclick: guard(say) }, icon("🔊"))
+  b.setAttribute("aria-label", label)
+  return b
+}
+
 export function prompt(text: string, tag: "h2" | "p" = "h2", cls = "") {
-  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void sayPrompt(text)) }, icon("🔊"))
-  b.setAttribute("aria-label", `Hear: ${text}`)
-  return h("div", { class: `prompt ${cls}` }, h(tag, tag === "p" ? { class: "say" } : {}, text), b)
+  return h("div", { class: `prompt ${cls}` },
+    h(tag, tag === "p" ? { class: "say" } : {}, text),
+    speakerButton(`Hear: ${text}`, () => void sayPrompt(text)))
 }
 
 export const picUrl = (img: string) => import.meta.env.BASE_URL + img
@@ -90,6 +97,10 @@ export function show(mode: Mode, back: (() => void) | null, ...nodes: Node[]) {
   window.scrollTo(0, 0)
 }
 
+export function toJpeg(c: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("photo failed"))), "image/jpeg", quality))
+}
+
 export async function shrinkPhoto(file: File, max = 900): Promise<Blob> {
   const bmp = await createImageBitmap(file)
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height))
@@ -97,5 +108,5 @@ export async function shrinkPhoto(file: File, max = 900): Promise<Blob> {
   c.width = Math.round(bmp.width * k)
   c.height = Math.round(bmp.height * k)
   c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height)
-  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("photo failed"))), "image/jpeg", 0.82))
+  return toJpeg(c, 0.82)
 }

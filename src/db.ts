@@ -6,7 +6,7 @@ export type SavedPhrase = {
   pic?: string
   img?: string
 }
-export type SessionRecord = {
+type SessionRecord = {
   id?: number
   phraseId?: number
   phraseText: string

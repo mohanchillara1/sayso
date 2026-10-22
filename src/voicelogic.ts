@@ -5,8 +5,10 @@ const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jes
 
 export const isNovelty = (name: string) => NOVELTY.test(name.trim())
 
+const langOf = (v: VoiceInfo) => v.lang.toLowerCase().replace("_", "-")
+
 export function scoreVoice(v: VoiceInfo): number {
-  const lang = v.lang.toLowerCase().replace("_", "-")
+  const lang = langOf(v)
   if (!lang.startsWith("en")) return -Infinity
   let s = 0
   if (lang === "en-us") s += 40
@@ -37,10 +39,12 @@ export function baseName(name: string): string {
 
 const ACCENT: Record<string, string> = { "en-gb": "UK", "en-au": "Australia", "en-ie": "Ireland", "en-in": "India", "en-za": "South Africa", "en-ca": "Canada", "en-nz": "New Zealand" }
 
+const QUALITY = ["Premium", "Enhanced", "Natural", "Neural"]
+
 export function voiceLabel(v: VoiceInfo): string {
-  const lang = v.lang.toLowerCase().replace("_", "-")
+  const lang = langOf(v)
   const tags = [
-    /premium/i.test(v.name) ? "Premium" : /enhanced/i.test(v.name) ? "Enhanced" : /natural/i.test(v.name) ? "Natural" : /neural/i.test(v.name) ? "Neural" : "",
+    QUALITY.find((q) => v.name.toLowerCase().includes(q.toLowerCase())) ?? "",
     lang === "en-us" || lang === "en" ? "" : ACCENT[lang] ?? lang,
     v.local ? "" : "online",
   ].filter(Boolean)

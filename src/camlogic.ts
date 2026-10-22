@@ -62,7 +62,7 @@ export const WORDS: Record<string, string> = {
   "cereal": "cereal", "crackers": "crackers", "honey": "honey", "jam": "jam", "juice": "juice", "sugar": "sugar", "tea bag": "tea bag", "butter": "butter",
 }
 
-export const EITHER: Record<string, string[]> = {
+const EITHER: Record<string, string[]> = {
   "pen/pencil": ["pen", "pencil"], "wallet/purse": ["wallet", "purse"], "tape measure/ruler": ["ruler", "tape measure"],
   "washing machine/drying machine": ["washing machine", "dryer"],
 }
@@ -112,7 +112,7 @@ export const askLevel = (word: string, s: Settings) => Math.min(s.askAt, s.askFo
 
 export const wordFor = (label: string): string | null => WORDS[label.toLowerCase()] ?? null
 
-export type View = {
+type View = {
   w: number
   h: number
   room?: Box[]
@@ -121,31 +121,37 @@ export type View = {
 }
 export type Cand = Det & { word: string }
 
-export const ROOM_WORDS = new Set([
+const ROOM_WORDS = new Set([
   "lamp", "TV", "chair", "table", "bed", "couch", "picture", "mirror", "plant", "fridge", "oven", "stove", "sink", "toilet",
   "bath", "shower", "bench", "stool", "bedside table", "radiator", "air conditioner", "fan", "washing machine", "dishwasher",
   "piano", "cooker hood", "clock", "lantern",
 ])
 
+const WORN = new Set(["glasses", "hat", "tie", "bow tie", "necklace", "watch", "mask", "helmet", "headphones", "earbuds", "gloves", "belt", "backpack"])
+
+const area = (b: Box) => b.w * b.h
+const centre = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
+export const contains = (b: Box, x: number, y: number) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h
+
+function overlap(a: Box, b: Box): number {
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+  return Math.max(0, w) * Math.max(0, h)
+}
+
 export function iou(a: Box, b: Box): number {
-  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y)
-  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h)
-  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1)
-  const union = a.w * a.h + b.w * b.h - inter
+  const inter = overlap(a, b)
+  const union = area(a) + area(b) - inter
   return union > 0 ? inter / union : 0
 }
 
-const offCentre = (b: Box, v: View) => Math.hypot((b.x + b.w / 2) / v.w - 0.5, (b.y + b.h / 2) / v.h - 0.5) / Math.SQRT1_2
+function offCentre(b: Box, v: View) {
+  const c = centre(b)
+  return Math.hypot(c.x / v.w - 0.5, c.y / v.h - 0.5) / Math.SQRT1_2
+}
 
-export const WORN = new Set(["glasses", "hat", "tie", "bow tie", "necklace", "watch", "mask", "helmet", "headphones", "earbuds", "gloves", "belt", "backpack"])
-
-export function onPerson(b: Box, dets: Det[]): boolean {
-  return dets.some((p) => {
-    if (p.label.toLowerCase() !== "person" || p.score < 0.25) return false
-    const iw = Math.max(0, Math.min(b.x + b.w, p.box.x + p.box.w) - Math.max(b.x, p.box.x))
-    const ih = Math.max(0, Math.min(b.y + b.h, p.box.y + p.box.h) - Math.max(b.y, p.box.y))
-    return b.w * b.h > 0 && (iw * ih) / (b.w * b.h) >= 0.8
-  })
+function onPerson(b: Box, dets: Det[]): boolean {
+  return dets.some((p) => p.label.toLowerCase() === "person" && p.score >= 0.25 && area(b) > 0 && overlap(b, p.box) / area(b) >= 0.8)
 }
 
 export function candidates(dets: Det[], s: Settings, v?: View): Cand[] {
@@ -156,45 +162,57 @@ export function candidates(dets: Det[], s: Settings, v?: View): Cand[] {
     .sort((a, b) => b.score - a.score)
 }
 
-export function salience(c: Cand, all: Cand[], v?: View): number {
+function salience(c: Cand, all: Cand[], v?: View): number {
   if (!v) return c.score
-  const area = (c.box.w * c.box.h) / (v.w * v.h)
   let k = 1 - 0.7 * Math.min(1, offCentre(c.box, v))
-  if (area < 0.01) k *= 0.6
+  if (area(c.box) / (v.w * v.h) < 0.01) k *= 0.6
   if (v.room?.some((r) => iou(r, c.box) >= 0.5)) k *= 0.5
-  const smallerNearer = all.some((o) => o !== c && !ROOM_WORDS.has(o.word) && o.box.w * o.box.h < c.box.w * c.box.h && offCentre(o.box, v) < offCentre(c.box, v))
-  if (ROOM_WORDS.has(c.word) && smallerNearer) k *= 0.6
+  if (ROOM_WORDS.has(c.word)) {
+    const smallerNearer = all.some((o) => o !== c && !ROOM_WORDS.has(o.word) && area(o.box) < area(c.box) && offCentre(o.box, v) < offCentre(c.box, v))
+    if (smallerNearer) k *= 0.6
+  }
   return c.score * k
 }
 
-export function inFocus(c: Cand, v?: View): boolean {
+function inFocus(c: Cand, v?: View): boolean {
   if (!v) return true
-  const cx = c.box.x + c.box.w / 2, cy = c.box.y + c.box.h / 2
-  if (v.lock) { const L = v.lock; return iou(c.box, L) >= 0.2 || (cx >= L.x && cx <= L.x + L.w && cy >= L.y && cy <= L.y + L.h) }
-  if (v.area) { const A = v.area; return cx >= A.x && cx <= A.x + A.w && cy >= A.y && cy <= A.y + A.h }
-  const middle = Math.abs(cx / v.w - 0.5) <= 0.25 && Math.abs(cy / v.h - 0.5) <= 0.25
-  const overMiddle = c.box.x <= v.w / 2 && c.box.x + c.box.w >= v.w / 2 && c.box.y <= v.h / 2 && c.box.y + c.box.h >= v.h / 2
-  return middle || overMiddle
+  const { x, y } = centre(c.box)
+  if (v.lock) return iou(c.box, v.lock) >= 0.2 || contains(v.lock, x, y)
+  if (v.area) return contains(v.area, x, y)
+  const middle = Math.abs(x / v.w - 0.5) <= 0.25 && Math.abs(y / v.h - 0.5) <= 0.25
+  return middle || contains(c.box, v.w / 2, v.h / 2)
 }
 
-export function pickTarget(cands: Cand[], v?: View, focusOnly = true): Cand | null {
+function pickTarget(cands: Cand[], v?: View, focusOnly = true): Cand | null {
   const pool = v?.lock || focusOnly ? cands.filter((c) => inFocus(c, v)) : cands
-  let best: Cand | null = null, bestS = -1
-  for (const c of pool) { const sc = salience(c, pool, v); if (sc > bestS) { best = c; bestS = sc } }
+  let best: Cand | null = null
+  let bestScore = -1
+  for (const c of pool) {
+    const score = salience(c, pool, v)
+    if (score > bestScore) {
+      best = c
+      bestScore = score
+    }
+  }
   return best
 }
+
+const wordsFor = (d: Cand) => EITHER[d.label.toLowerCase()] ?? [d.word]
 
 export function decide(dets: Det[], s: Settings, v?: View): Decision {
   const all = candidates(dets, s, v)
   const top = pickTarget(all, v)
   if (!top) return { kind: "none" }
-  const either = EITHER[top.label.toLowerCase()]
-  if (top.score >= s.nameAt) return either ? { kind: "ask", words: either, box: top.box } : { kind: "name", word: top.word, box: top.box }
+  if (top.score >= s.nameAt) {
+    const either = EITHER[top.label.toLowerCase()]
+    return either ? { kind: "ask", words: either, box: top.box } : { kind: "name", word: top.word, box: top.box }
+  }
   if (top.score < askLevel(top.word, s)) return { kind: "none" }
   const words: string[] = []
   for (const d of all) {
-    if (d !== top && (d.score < (s.listAt ?? askLevel(d.word, s) * 0.75) || iou(d.box, top.box) < 0.3)) continue
-    for (const w of EITHER[d.label.toLowerCase()] ?? [d.word]) if (!words.includes(w)) words.push(w)
+    const minScore = s.listAt ?? askLevel(d.word, s) * 0.75
+    if (d !== top && (d.score < minScore || iou(d.box, top.box) < 0.3)) continue
+    for (const w of wordsFor(d)) if (!words.includes(w)) words.push(w)
   }
   return { kind: "ask", words: words.slice(0, s.maxAsk ?? 3), box: top.box }
 }

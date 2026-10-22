@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { readFileSync } from "node:fs"
 
-const src = readFileSync(new URL("./loading.ts", import.meta.url), "utf8")
+const src = readFileSync(new URL("./start.ts", import.meta.url), "utf8")
 const line = (name: string) => src.match(new RegExp(`export const ${name} = "([^"]*)"`))?.[1]
 
 describe("start screen tagline", () => {

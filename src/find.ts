@@ -1,4 +1,4 @@
-import { h, button, show, guard, prompt, picture, icon } from "./ui"
+import { h, button, show, guard, prompt, picture, speakerButton } from "./ui"
 import { listPhrases, saveSession, type SavedPhrase } from "./db"
 import { homeScreen, wordsScreen, addStarters } from "./main"
 import { STARTER } from "./starter"
@@ -44,12 +44,18 @@ function runFind(round: Item[], all: Item[]) {
     status.setAttribute("role", "status")
     const dock = h("div", { class: "dock" })
     const again = button("Say it again", () => void speak(target.text), "btn", "🔊")
+    const last = i + 1 === round.length
+
+    const tell = (text: string, spoken = text) => {
+      status.textContent = text
+      sayPrompt(spoken)
+    }
 
     const finishWord = (found: boolean) => {
       over = true
       const r = resultOf(wrong, found)
-      grid.querySelectorAll("button").forEach((b) => ((b as HTMLButtonElement).disabled = b.dataset.right !== "1"))
-      dock.replaceChildren(again, button(i + 1 < round.length ? "Next" : "Finish", () => void next(r), "btn go", i + 1 < round.length ? "→" : "✔"))
+      grid.querySelectorAll("button").forEach((b) => (b.disabled = b.dataset.right !== "1"))
+      dock.replaceChildren(again, button(last ? "Finish" : "Next", () => void next(r), "btn go", last ? "✔" : "→"))
     }
 
     let saving = false
@@ -66,32 +72,25 @@ function runFind(round: Item[], all: Item[]) {
       urls.forEach((u) => URL.revokeObjectURL(u))
       results.push(r)
       i++
-      if (i < round.length) card()
-      else done()
+      if (last) done()
+      else card()
     }
 
     const tap = (c: Item, el: HTMLButtonElement) => {
       if (over || el.disabled) return
       if (judge(c, target)) {
         el.classList.add("right")
-        status.textContent = `Yes. ${target.text}.`
-        sayPrompt(`Yes. ${target.text}.`)
+        tell(`Yes. ${target.text}.`)
         finishWord(true)
         return
       }
       wrong++
       el.classList.add("wrong")
       el.disabled = true
-      if (wrong >= MAX_WRONG) {
-        const right = grid.querySelector<HTMLButtonElement>('[data-right="1"]')
-        right?.classList.add("right")
-        status.textContent = `This one is ${target.text}.`
-        sayPrompt(`This one is ${target.text}.`)
-        finishWord(false)
-      } else {
-        status.textContent = "Not that one. Listen again."
-        sayPrompt(`Not that one. Listen again: ${target.text}.`)
-      }
+      if (wrong < MAX_WRONG) return tell("Not that one. Listen again.", `Not that one. Listen again: ${target.text}.`)
+      grid.querySelector('[data-right="1"]')?.classList.add("right")
+      tell(`This one is ${target.text}.`)
+      finishWord(false)
     }
 
     const grid = h("div", { class: `grid4 n${choices.length}` }, ...choices.map((c, k) => {
@@ -112,7 +111,7 @@ function runFind(round: Item[], all: Item[]) {
 
     dock.replaceChildren(again)
     show("find", () => void findPick(),
-      h("div", { class: "prompt" }, h("h1", { class: "cue" }, "Which one is it?"), speakerBtn(target.text)),
+      h("div", { class: "prompt" }, h("h1", { class: "cue" }, "Which one is it?"), speakerButton("Hear the word again", () => void speak(target.text))),
       h("p", { class: "count" }, `${i + 1} of ${round.length}`),
       grid,
       status,
@@ -137,8 +136,3 @@ function runFind(round: Item[], all: Item[]) {
   card()
 }
 
-function speakerBtn(word: string) {
-  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void speak(word)) }, icon("🔊"))
-  b.setAttribute("aria-label", "Hear the word again")
-  return b
-}

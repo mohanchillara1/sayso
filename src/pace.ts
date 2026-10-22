@@ -1,6 +1,9 @@
-const KEY = "sayso.slower"
+import { load, save } from "./store"
 
-export type Pace = {
+const SLOWER_KEY = "sayso.slower"
+const DEBUG_KEY = "sayso.debug"
+
+type Pace = {
   wordRate: number
   promptRate: number
   sayWordAfterMs: number
@@ -16,18 +19,9 @@ export const PACE: Record<"normal" | "slower", Pace> = {
   slower: { wordRate: 0.6, promptRate: 0.75, sayWordAfterMs: 900, warmUpMs: 3000, extraSteadyLooks: 3, guessEveryMs: 400, hintEveryMs: 9000, promptAfterMs: 900 },
 }
 
-export function isSlower(): boolean {
-  try { return localStorage.getItem(KEY) === "1" } catch { return false }
-}
-export function setSlower(on: boolean) {
-  try { localStorage.setItem(KEY, on ? "1" : "0") } catch {}
-}
+export const isSlower = () => load(SLOWER_KEY) === "1"
+export const setSlower = (on: boolean) => save(SLOWER_KEY, on ? "1" : "0")
 export const pace = (): Pace => (isSlower() ? PACE.slower : PACE.normal)
 
-const DEBUG_KEY = "sayso.debug"
-export function showTestInfo(): boolean {
-  try { return new URLSearchParams(location.search).has("debug") || localStorage.getItem(DEBUG_KEY) === "1" } catch { return false }
-}
-export function setTestInfo(on: boolean) {
-  try { localStorage.setItem(DEBUG_KEY, on ? "1" : "0") } catch {}
-}
+export const showTestInfo = () => new URLSearchParams(location.search).has("debug") || load(DEBUG_KEY) === "1"
+export const setTestInfo = (on: boolean) => save(DEBUG_KEY, on ? "1" : "0")

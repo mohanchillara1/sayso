@@ -9,11 +9,10 @@ import { h, button, show, shrinkPhoto, guard, prompt, picture, picUrl, picsCredi
 import { findPick } from "./find"
 import { cameraScreen } from "./camera"
 import { warmFinder } from "./finder"
-import { startScreen } from "./loading"
+import { startScreen } from "./start"
 import { STARTER, missingStarters } from "./starter"
 import { isSlower, setSlower, showTestInfo, setTestInfo } from "./pace"
-import { voices, chooseVoice, onVoices, onVoiceBroken, speak } from "./speak"
-import { voiceLabel } from "./voicelogic"
+import { voices, chooseVoice, onVoices, onVoiceBroken, speak, savedVoice, describeVoice } from "./speak"
 
 function aboutScreen() {
   show("home", settingsScreen,
@@ -52,16 +51,22 @@ function modeTile(cls: string, ic: string, title: string, about: string, go: () 
     icon(ic, "mode-ic"), h("span", { class: "mode-text" }, h("b", {}, title), h("span", {}, about)), icon("→", "mode-go"))
 }
 
+const phrasesOrNone = () => listPhrases().catch(() => [] as SavedPhrase[])
+
 export async function addStarters(): Promise<number> {
-  const have = await listPhrases().catch(() => [] as SavedPhrase[])
-  const add = missingStarters(have.map((p) => p.text))
+  const add = missingStarters((await phrasesOrNone()).map((p) => p.text))
   const now = Date.now()
-  for (const [i, s] of add.entries()) await savePhrase({ text: s.text, createdAt: now - i, ...(s.pic ? { pic: s.pic } : {}), ...(s.img ? { img: s.img } : {}) })
+  for (const [i, s] of add.entries()) {
+    const phrase: SavedPhrase = { text: s.text, createdAt: now - i }
+    if (s.pic) phrase.pic = s.pic
+    if (s.img) phrase.img = s.img
+    await savePhrase(phrase)
+  }
   return add.length
 }
 
 export async function wordsScreen() {
-  const items = (await listPhrases().catch(() => [] as SavedPhrase[])).sort((a, b) => b.createdAt - a.createdAt)
+  const items = (await phrasesOrNone()).sort((a, b) => b.createdAt - a.createdAt)
   const missing = missingStarters(items.map((p) => p.text)).length
   show("home", () => void homeScreen(),
     h("h2", {}, "My words"),
@@ -81,12 +86,18 @@ export async function wordsScreen() {
   )
 }
 
-export function itemScreen(existing: SavedPhrase | undefined) {
+function itemScreen(existing: SavedPhrase | undefined) {
   const back = () => void wordsScreen()
   let photo: Blob | undefined = existing?.photo
   const text = h("input", { type: "text", value: existing?.text ?? "", placeholder: "cup", maxLength: 80 })
   const preview = h("div", {})
-  const showPhoto = () => preview.replaceChildren(photo ? h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" }) : existing?.img ? h("img", { class: "big-photo", src: picUrl(existing.img), alt: existing.text }) : existing?.pic ? h("span", { class: "big-photo emoji", ariaHidden: "true" }, existing.pic) : h("span"))
+  const bigPicture = () => {
+    if (photo) return h("img", { class: "big-photo", src: URL.createObjectURL(photo), alt: "Photo for this word" })
+    if (existing?.img) return h("img", { class: "big-photo", src: picUrl(existing.img), alt: existing.text })
+    if (existing?.pic) return h("span", { class: "big-photo emoji", ariaHidden: "true" }, existing.pic)
+    return h("span")
+  }
+  const showPhoto = () => preview.replaceChildren(bigPicture())
   const file = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true })
   file.addEventListener("change", async () => {
     const f = file.files?.[0]
@@ -130,10 +141,15 @@ export function itemScreen(existing: SavedPhrase | undefined) {
 }
 
 async function progressScreen() {
-  const rows = (await listSessions().catch(() => [])).filter((s) => s.mode === "find" || s.mode === "camera").sort((a, b) => b.at - a.at).slice(0, 40)
+  const rows = (await listSessions().catch(() => []))
+    .filter((s) => s.mode === "find" || s.mode === "camera")
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 40)
   const detail = (s: (typeof rows)[number]) => {
-    if (s.mode === "find") return s.find === "first" ? "found it first time" : s.find === "later" ? "found it on the second try" : "the app showed it"
-    return s.selfRating === "got" ? "you said you got it" : "you said not yet"
+    if (s.mode === "camera") return s.selfRating === "got" ? "you said you got it" : "you said not yet"
+    if (s.find === "first") return "found it first time"
+    if (s.find === "later") return "found it on the second try"
+    return "the app showed it"
   }
   show("home", () => void homeScreen(),
     h("h2", {}, "Progress"),
@@ -150,47 +166,46 @@ function settingsScreen() {
   const persisted = h("p", { class: "soft" }, "")
   const backupMsg = h("p", { class: "soft" }, "")
   backupMsg.setAttribute("aria-live", "polite")
-  void navigator.storage?.persisted?.().then((p) => { persisted.textContent = p ? "Storage: the browser will keep your photos and history." : "Storage: the browser may clear photos and history if the device runs low on space. Save a backup file now and then (it is a copy to keep; the app cannot load it back yet)." })
+  void navigator.storage?.persisted?.().then((p) => {
+    persisted.textContent = p
+      ? "Storage: the browser will keep your photos and history."
+      : "Storage: the browser may clear photos and history if the device runs low on space. Save a backup file now and then (it is a copy to keep; the app cannot load it back yet)."
+  })
+  const slower = switchRow("switch panel", "Slower", "Speaks more slowly, and Point and name waits longer before it stops on a thing.", isSlower(), (on) => {
+    setSlower(on)
+    void speak(on ? "Slower. On." : "Slower. Off.")
+  })
   show("home", () => void homeScreen(),
     h("h2", {}, "Settings"),
     h("p", { class: "soft" }, "Nothing here needs changing. The app works as it is."),
-    slowerSwitch(),
+    slower,
     button("Save a backup", () => void backup(backupMsg), "btn", "💾"),
     backupMsg,
     persisted,
     h("details", { class: "panel fine" },
       h("summary", {}, "Fine-tune (optional)"),
-      testInfoSwitch(),
+      switchRow("switch", "Show test info", "Shows which object finder runs, and how fast, on the camera picture.", showTestInfo(), setTestInfo),
     ),
     button("About this app", aboutScreen, "btn quiet", "ℹ"),
   )
 }
 
-function testInfoSwitch() {
-  const box = h("input", { type: "checkbox", checked: showTestInfo() }) as HTMLInputElement
-  box.addEventListener("change", () => setTestInfo(box.checked))
-  return h("label", { class: "switch" }, box, h("span", {}, h("b", {}, "Show test info"), h("small", {}, "Shows which object finder runs, and how fast, on the camera picture.")))
-}
-
-function slowerSwitch() {
-  const box = h("input", { type: "checkbox", checked: isSlower() }) as HTMLInputElement
-  box.addEventListener("change", () => { setSlower(box.checked); void speak(box.checked ? "Slower. On." : "Slower. Off.") })
-  return h("label", { class: "switch panel" }, box,
-    h("span", {}, h("b", {}, "Slower"), h("small", {}, "Speaks more slowly, and Point and name waits longer before it stops on a thing.")))
+function switchRow(cls: string, title: string, about: string, checked: boolean, onChange: (on: boolean) => void) {
+  const box = h("input", { type: "checkbox", checked })
+  box.addEventListener("change", () => onChange(box.checked))
+  return h("label", { class: cls }, box, h("span", {}, h("b", {}, title), h("small", {}, about)))
 }
 
 function voiceSwitch() {
-  const sel = h("select", { class: "voice-select" }) as HTMLSelectElement
+  const sel = h("select", { class: "voice-select" })
   sel.setAttribute("aria-label", "Voice")
-  const label = (v: SpeechSynthesisVoice) => voiceLabel({ name: v.name, lang: v.lang, local: v.localService, isDefault: v.default })
   const fill = () => {
     const vs = voices()
-    let saved: string | null = null
-    try { saved = localStorage.getItem("sayso.voice") } catch {}
+    let saved = savedVoice()
     if (saved && !vs.some((v) => v.name === saved)) saved = null
     sel.replaceChildren(
-      h("option", { value: "", selected: !saved }, vs[0] ? `Auto: ${label(vs[0])}` : "Auto"),
-      ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, label(v))),
+      h("option", { value: "", selected: !saved }, vs[0] ? `Auto: ${describeVoice(vs[0])}` : "Auto"),
+      ...vs.map((v) => h("option", { value: v.name, selected: saved === v.name }, describeVoice(v))),
     )
     sel.disabled = !vs.length
     row.hidden = !vs.length
@@ -203,14 +218,23 @@ function voiceSwitch() {
   return row
 }
 
-const asDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(b) })
+function asDataUrl(b: Blob): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(String(r.result))
+    r.onerror = () => rej(r.error)
+    r.readAsDataURL(b)
+  })
+}
 
 async function backup(msg: HTMLElement) {
   try {
     const items = await listPhrases()
     const sessions = await listSessions()
-    const out = { app: "sayso", saved: new Date().toISOString(), sessions, items: await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined }))) }
-    const a = h("a", { href: URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" })), download: `sayso-backup-${new Date().toISOString().slice(0, 10)}.json` })
+    const withPhotos = await Promise.all(items.map(async (p) => ({ ...p, photo: p.photo ? await asDataUrl(p.photo) : undefined })))
+    const out = { app: "sayso", saved: new Date().toISOString(), sessions, items: withPhotos }
+    const file = new Blob([JSON.stringify(out)], { type: "application/json" })
+    const a = h("a", { href: URL.createObjectURL(file), download: `sayso-backup-${new Date().toISOString().slice(0, 10)}.json` })
     document.body.append(a)
     a.click()
     a.remove()
@@ -220,11 +244,6 @@ async function backup(msg: HTMLElement) {
   }
 }
 
-async function boot() {
-  try { void navigator.storage?.persist?.() } catch {}
-  if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {})
-  startScreen(() => void homeScreen())
-}
-void boot()
-
-;(window as unknown as Record<string, unknown>).__sayso = { prepare }
+try { void navigator.storage?.persist?.() } catch {}
+if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {})
+startScreen(() => void homeScreen())

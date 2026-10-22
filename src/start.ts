@@ -29,7 +29,7 @@ export function startScreen(next: () => void) {
       mark,
       h("h1", { class: "start-name" }, "SaySo"),
       h("p", { class: "start-tag" }, TAGLINE),
-      ...(SUBLINE ? [h("p", { class: "start-sub" }, SUBLINE)] : []),
+      SUBLINE ? h("p", { class: "start-sub" }, SUBLINE) : "",
       line,
     ),
     h("div", { class: "dock start-dock" }, go),

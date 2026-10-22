@@ -1,4 +1,4 @@
-export type Starter = { text: string; pic?: string; img?: string }
+type Starter = { text: string; pic?: string; img?: string }
 export const STARTER: Starter[] = [
   { text: "cup", pic: "☕" }, { text: "spoon", pic: "🥄" }, { text: "bed", pic: "🛏️" }, { text: "clock", pic: "⏰" },
   { text: "key", pic: "🔑" }, { text: "book", pic: "📖" }, { text: "phone", pic: "📱" }, { text: "glasses", pic: "👓" },

@@ -1,5 +1,21 @@
 import { FINDERS, mediapipeFinder, type Finder } from "../../src/finder"
-import { brighten, padOut } from "../../src/frameprep"
+import { meanLight, padOut } from "../../src/frameprep"
+
+function brighten(src: HTMLCanvasElement): HTMLCanvasElement {
+  const c = document.createElement("canvas")
+  c.width = src.width; c.height = src.height
+  const x = c.getContext("2d", { willReadFrequently: true })!
+  x.drawImage(src, 0, 0, c.width, c.height)
+  const img = x.getImageData(0, 0, c.width, c.height)
+  const mean = meanLight(img.data)
+  if (mean >= 0.25 || mean <= 0) return c
+  const gain = Math.min(4, 0.45 / mean)
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i] *= gain; img.data[i + 1] *= gain; img.data[i + 2] *= gain
+  }
+  x.putImageData(img, 0, 0)
+  return c
+}
 
 type Out = { label: string; score: number; box: [number, number, number, number] }
 
@@ -9,8 +25,8 @@ const finders: Record<string, Finder> = {}
 async function setup(which: string[]) {
   for (const w of which) {
     if (finders[w]) continue
-    if (w === "dfine-webgpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
-    if (w === "siglip2-webgpu" || w === "mobileclip-webgpu" || w === "mobileclip-cpu") finders[w] = await FINDERS.find((f) => f.name === w)!.make()
+    const appFinder = FINDERS.find((f) => f.name === w && !f.name.startsWith("mediapipe"))
+    if (appFinder) finders[w] = await appFinder.make()
     if (w === "mediapipe-gpu") finders[w] = await mediapipeFinder("efficientdet_lite0_fp16.tflite", "GPU", LOW, w)
     if (w === "mediapipe-cpu") finders[w] = await mediapipeFinder("efficientdet_lite0.tflite", "CPU", LOW, w)
   }
