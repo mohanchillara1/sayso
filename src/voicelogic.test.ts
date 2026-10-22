@@ -32,6 +32,7 @@ describe("rankVoices", () => {
   })
 })
 
+// Realistic voice lists (names and languages as each system reports them; 2026-10-21).
 const eloquence = ["Eddy", "Flo", "Grandma", "Grandpa", "Reed", "Rocko", "Sandy", "Shelley"]
 const IPHONE: VoiceInfo[] = [
   ...["Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos", "Good News", "Jester", "Organ", "Superstar", "Trinoids", "Whisper", "Wobble", "Zarvox", "Fred", "Junior", "Ralph", "Kathy"].map((n) => v(n)),

@@ -1,3 +1,6 @@
+// Threshold search for one finder. Tunes on the MAIN set only; the held-out set is
+// only reported, so its numbers stay a fair check.
+//   NO_REPORT=1 npx vite-node scripts/eval/tune.ts <raw.json> [finder]
 import { tally, toDets, LIVE, fmt, raw } from "./score"
 import type { Settings } from "../../src/camlogic"
 
@@ -9,6 +12,7 @@ const STRATS: Record<string, (p: P) => ReturnType<typeof toDets>[]> = {
   "orig": (p) => [toDets(p.dets[finder].orig)],
   "orig, then pad": (p) => [toDets(p.dets[finder].orig), toDets(p.dets[finder]["orig+pad"])],
 }
+// A wrong name teaches the wrong word, so it costs two right ones.
 const value = (t: ReturnType<typeof tally>) => (t.texNamed + t.texAsked > 0 ? -999 : t.named + t.asked - 2 * t.wrong - 0.25 * t.asked)
 for (const [sname, strat] of Object.entries(STRATS)) {
   const live = LIVE[finder]

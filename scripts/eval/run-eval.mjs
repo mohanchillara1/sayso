@@ -1,10 +1,13 @@
+// Runs scripts/eval/finder-eval.html in a private, muted, headless Chrome and saves
+// every guess for every test photo. Run with WINDOWS node (node.exe) from a /mnt/c folder:
+//   node.exe run-eval.mjs <app url> <out.json> <finders,comma> <photo dir> [<photo dir>...]
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 const [APP, OUT, WHICH, ...DIRS] = process.argv.slice(2)
-const PORT = 9300 + Math.floor(Math.random() * 90)
+const PORT = 9300 + Math.floor(Math.random() * 90) // fresh port each run (a stale Chrome may hold an old one)
 const profile = mkdtempSync(join(tmpdir(), "sayso-eval-"))
 const chrome = spawn("C:/Program Files/Google/Chrome/Application/chrome.exe", [
   "--headless=new", "--mute-audio", `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
@@ -12,7 +15,7 @@ const chrome = spawn("C:/Program Files/Google/Chrome/Application/chrome.exe", [
 ], { stdio: "ignore" })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let target
-for (let i = 0; i < 40 && !target; i++) { await sleep(500); try { target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${APP}scripts/eval/finder-eval.html`, { method: "PUT" })).json() } catch {} }
+for (let i = 0; i < 40 && !target; i++) { await sleep(500); try { target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${APP}scripts/eval/finder-eval.html`, { method: "PUT" })).json() } catch { /* not up yet */ } }
 const ws = new WebSocket(target.webSocketDebuggerUrl)
 await new Promise((r) => ws.addEventListener("open", r))
 let id = 0; const pending = new Map(); const errors = []

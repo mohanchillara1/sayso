@@ -112,7 +112,7 @@ describe("live feedback", () => {
 describe("every Objects365 class is decided", () => {
   it("is either a home word or left out on purpose", async () => {
     const { readFileSync } = await import("node:fs")
-    const labels: string[] = JSON.parse(readFileSync("public/models/dfine_s_obj365.labels.json", "utf8")).slice(1)
+    const labels: string[] = JSON.parse(readFileSync("public/models/dfine_s_obj365.labels.json", "utf8")).slice(1) // 0 is "None"
     const out = new Set(Object.values(LEFT_OUT).flatMap((v) => v.split(",").map((x) => x.trim().toLowerCase())))
     const loose = labels.filter((l) => !(l.toLowerCase() in WORDS) && !out.has(l.toLowerCase()))
     expect(loose).toEqual([])
@@ -166,9 +166,9 @@ describe("target choice: the thing being shown, not the room (dad's lamp, 10-15)
     expect(decide([face, glasses], D, V)).toEqual({ kind: "none" })
     expect(bestGuess([face, glasses], D, V)).toBeNull()
     expect(decide([face, glasses, pen], D, V)).toMatchObject({ kind: "ask", words: ["pen", "pencil"] })
-    expect(decide([glasses], D, V)).toMatchObject({ kind: "name", word: "glasses" })
-    expect(decide([face, glasses], D, { ...V, lock: glasses.box })).toMatchObject({ kind: "name", word: "glasses" })
-    expect(decide([face, glasses], D, { ...V, area: { x: 80, y: 0, w: 480, h: 480 } })).toMatchObject({ kind: "name", word: "glasses" })
+    expect(decide([glasses], D, V)).toMatchObject({ kind: "name", word: "glasses" }) // on their own: named
+    expect(decide([face, glasses], D, { ...V, lock: glasses.box })).toMatchObject({ kind: "name", word: "glasses" }) // tapped: named
+    expect(decide([face, glasses], D, { ...V, area: { x: 80, y: 0, w: 480, h: 480 } })).toMatchObject({ kind: "name", word: "glasses" }) // in the square: named
   })
   it("a weak pen is still asked about, with its own words (askFor)", () => {
     const P: Settings = { ...D, askFor: { pen: 0.18 } }

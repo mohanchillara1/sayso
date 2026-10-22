@@ -1,11 +1,22 @@
+// The start screen, on every launch (2026-10-21, dad: "remove the beginning disclaimer thing and then design a nice logo
+// for sayso with a start button and animations"). It replaced the "Getting ready…" screen of 2026-10-18.
+// - The logo comes in calmly, then the name, then one big Start button (about 1.3 seconds in all; nothing flashes, and
+//   with the phone's "reduce motion" setting nothing moves). It is the opening shot of the CAC video.
+// - Behind it, the object finder for Point and name gets ready. The first time, a quiet line under the name shows the
+//   download (a real percentage: finder.ts knows each file's size), then "Setting it up on this phone". Start turns on
+//   when the finder is ready. Hear it, find it does not need the finder, so after 10 seconds Start turns on anyway and
+//   Point and name finishes getting ready by itself (it waits for it, as before).
 import { h, button, show } from "./ui"
 import { loadFinder } from "./finder"
 import { LOGO_SVG } from "./logo"
 
 const START_ANYWAY_MS = 10_000
 
+// The start screen's lines (dad, 2026-10-21: "can you add a tag line for the start page?"). Swap TAGLINE for another;
+// the ones dad may pick: "Naming practice for people with aphasia." / "Point. Say it. Practice." /
+// "Everyday words, practiced at home." No claim of an effect (no "recover", "heal", "therapy").
 export const TAGLINE = "Word practice for aphasia, at home."
-export const SUBLINE = "Practice naming everyday things."
+export const SUBLINE = "Practice naming everyday things." // smaller, under the tagline; "" to drop it
 
 export function startScreen(next: () => void) {
   const mark = h("div", { class: "start-logo" })
@@ -29,12 +40,13 @@ export function startScreen(next: () => void) {
       mark,
       h("h1", { class: "start-name" }, "SaySo"),
       h("p", { class: "start-tag" }, TAGLINE),
-      SUBLINE ? h("p", { class: "start-sub" }, SUBLINE) : "",
+      ...(SUBLINE ? [h("p", { class: "start-sub" }, SUBLINE)] : []),
       line,
     ),
     h("div", { class: "dock start-dock" }, go),
   )
 
+  // What the quiet line says. Empty once the finder is ready: the screen is just the logo and Start.
   let phase: "starting" | "download" | "setup" | "ready" = "starting"
   let pc = 0, waited = false
   const render = () => {
@@ -45,12 +57,14 @@ export function startScreen(next: () => void) {
   }
 
   const anyway = setTimeout(() => { waited = true; render() }, START_ANYWAY_MS)
+  // finder.ts calls this with 1 at once when the file is already on the phone, so then it goes straight to "setup".
   loadFinder((part) => {
     pc = Math.round(part * 100)
     phase = pc >= 100 ? "setup" : "download"
     render()
   })
     .then(() => { phase = "ready"; render() })
+    // No finder on this phone: start anyway. Point and name explains and tries again.
     .catch(() => { phase = "ready"; render() })
   render()
 }

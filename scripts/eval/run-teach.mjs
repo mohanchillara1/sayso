@@ -1,3 +1,4 @@
+// node.exe run-teach.mjs <out.json> <model file> <webgpu|wasm> <photo dir>...: embeddings for every photo, muted headless Chrome.
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"

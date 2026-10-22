@@ -1,3 +1,7 @@
+// Screenshots of the main screens in a private, muted, headless Chrome with a fake camera, at phone
+// and desktop width, plus a few checks (which finder loaded, fonts, service worker, any "practis").
+// Run with WINDOWS node (node.exe) from a /mnt/c folder:
+//   node.exe shots.mjs <app url> <out dir>
 import { writeFileSync, mkdtempSync, mkdirSync } from "node:fs"
 import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"
@@ -13,7 +17,7 @@ const chrome = spawn("C:/Program Files/Google/Chrome/Application/chrome.exe", [
 ], { stdio: "ignore" })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let target
-for (let i = 0; i < 40 && !target; i++) { await sleep(500); try { target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?about:blank`, { method: "PUT" })).json() } catch {} }
+for (let i = 0; i < 40 && !target; i++) { await sleep(500); try { target = await (await fetch(`http://127.0.0.1:${PORT}/json/new?about:blank`, { method: "PUT" })).json() } catch { /* not up yet */ } }
 const ws = new WebSocket(target.webSocketDebuggerUrl)
 await new Promise((r) => ws.addEventListener("open", r))
 let id = 0; const pending = new Map(); const errors = []
@@ -23,7 +27,7 @@ ws.addEventListener("message", (e) => { const m = JSON.parse(e.data)
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })) })
 const ev = async (expr) => { const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description); return r.result?.result?.value }
 const shot = async (name) => { const r = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }); writeFileSync(join(OUT, `${name}.png`), Buffer.from(r.result.data, "base64")); console.log("shot", name) }
-const click = async (text) => { await sleep(500); return ev(`(() => { const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes(${JSON.stringify(text)})); if (!b) return false; b.click(); return true })()`) }
+const click = async (text) => { await sleep(500); return ev(`(() => { const b = [...document.querySelectorAll("button")].find((x) => x.textContent.includes(${JSON.stringify(text)})); if (!b) return false; b.click(); return true })()`) } // 500 ms: the app ignores a press right after a screen change
 const waitFor = async (expr, ms = 90000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await ev(expr)) return true; await sleep(250) } return false }
 await send("Runtime.enable"); await send("Page.enable")
 await send("Browser.grantPermissions", { permissions: ["videoCapture"], origin: new URL(APP).origin }).catch(() => {})
@@ -32,6 +36,7 @@ const report = { when: new Date().toISOString(), app: APP }
 const sizes = [{ tag: "phone", width: 390, height: 844, mobile: true, deviceScaleFactor: 2 }, { tag: "desktop", width: 1280, height: 800, mobile: false, deviceScaleFactor: 1 }]
 for (const s of sizes) {
   await send("Emulation.setDeviceMetricsOverride", s)
+  // First open, nothing stored: the loading screen should show.
   await send("Page.navigate", { url: APP })
   await sleep(1200)
   report[`${s.tag}.loadingShown`] = await ev(`!!document.querySelector(".loading")`)
@@ -60,6 +65,8 @@ for (const s of sizes) {
 }
 report.serviceWorker = await ev(`navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then((r) => r.map((x) => x.active?.scriptURL ?? "installing")) : "none"`)
 if (process.argv.includes("--offline")) {
+  // Real offline test: say the app is ready, wait for the person running this to stop the web server,
+  // then open the app again with nothing serving it.
   report.swReady = await ev(`navigator.serviceWorker.ready.then((r) => r.active.scriptURL)`)
   report.cachesBefore = await ev(`caches.keys()`)
   writeFileSync(join(OUT, "sw-ready"), "1")

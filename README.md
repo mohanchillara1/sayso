@@ -63,8 +63,6 @@ npm test         # unit tests (vitest)
 - `src/starter.ts`: the 12 starter words. `src/text.ts`: cleaning a typed word.
 - `src/db.ts`: IndexedDB (words with optional photo, sessions). Nothing leaves the device.
 - `src/epoch.ts`: stops a screen's loops when you leave it. `src/ui.ts`: DOM helpers and the page frame.
-- `src/start.ts`: the start screen (logo, tagline, Start). `src/pace.ts`: the timings the Slower switch stretches.
-- `src/store.ts`: settings kept in this browser (voice, Slower, test info).
 - `scripts/eval/`: how the finders were measured on licensed photos.
 
 ## Look

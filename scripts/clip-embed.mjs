@@ -1,3 +1,10 @@
+// Turns every app word into MobileCLIP-S0 numbers (its text half), once, offline. Not part of the app.
+// Run from a folder with @huggingface/transformers 4.3.1 installed (it is not an app dependency):
+//   node clip-embed.mjs scripts/clip-words.json public/models   (scripts/clip-words.json = the words that made the shipped numbers)
+// words.json is {"words":[{"word","key"}]}. Optional per word: "as" = what the prompts say when the spoken word is
+// ambiguous ("iron" is said, "clothes iron" is embedded); "mass": true = no "a"/"an" (sugar, milk, money);
+// "also": ["a ballpoint pen"] = extra ready-made prompts averaged in, for a word people picture several ways.
+// node embed.mjs <words.json> <out dir>: text embeddings for every app word (+ "nothing" prompts), MobileCLIP-S0 text tower.
 import { AutoTokenizer, CLIPTextModelWithProjection } from "@huggingface/transformers"
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 const [WORDS, OUT] = process.argv.slice(2)

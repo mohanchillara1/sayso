@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
+"""Builds public/pics/*.png from downloaded OpenMoji PNGs and our own drawings (scripts/pics-src/*.svg
+rendered to 256px PNG). Reads files from untrusted folders: checks the PNG signature, re-encodes
+through Pillow (so no original bytes or metadata are kept), 256x256, 48-colour palette.
+Usage: python3 -P scripts/pics-build.py <openmoji-dir> <drawn-png-dir> <out-dir>
+"""
 import sys, os
 from PIL import Image
 
+# word -> (source kind, source file stem)
 PICS = {
     "teapot": ("om", "1FAD6"), "toothbrush": ("om", "1FAA5"), "mirror": ("om", "1FA9E"), "plant": ("om", "1FAB4"),
     "bucket": ("om", "1FAA3"), "basket": ("om", "1F9FA"), "ladder": ("om", "1FA9C"), "hammer": ("om", "1F528"),

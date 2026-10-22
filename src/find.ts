@@ -1,4 +1,9 @@
-import { h, button, show, guard, prompt, picture, speakerButton } from "./ui"
+// Hear it, find it: practice with no helper. The phone says a word, the person taps
+// the matching picture out of up to four. The app checks the tap itself (it knows
+// which word it said), so nobody has to judge. Two wrong taps and it shows the
+// right one. Words show their photo, else their built-in picture, else the written word.
+// First time, with no words yet, one tap adds the everyday starter words.
+import { h, button, show, guard, prompt, picture, icon } from "./ui"
 import { listPhrases, saveSession, type SavedPhrase } from "./db"
 import { homeScreen, wordsScreen, addStarters } from "./main"
 import { STARTER } from "./starter"
@@ -39,23 +44,17 @@ function runFind(round: Item[], all: Item[]) {
     const choices = pickChoices(target, all, 4)
     const urls: string[] = []
     let wrong = 0
-    let over = false
+    let over = false // this word is answered (found or shown)
     const status = h("p", { class: "status find-status" })
     status.setAttribute("role", "status")
     const dock = h("div", { class: "dock" })
     const again = button("Say it again", () => void speak(target.text), "btn", "🔊")
-    const last = i + 1 === round.length
-
-    const tell = (text: string, spoken = text) => {
-      status.textContent = text
-      sayPrompt(spoken)
-    }
 
     const finishWord = (found: boolean) => {
       over = true
       const r = resultOf(wrong, found)
-      grid.querySelectorAll("button").forEach((b) => (b.disabled = b.dataset.right !== "1"))
-      dock.replaceChildren(again, button(last ? "Finish" : "Next", () => void next(r), "btn go", last ? "✔" : "→"))
+      grid.querySelectorAll("button").forEach((b) => ((b as HTMLButtonElement).disabled = b.dataset.right !== "1"))
+      dock.replaceChildren(again, button(i + 1 < round.length ? "Next" : "Finish", () => void next(r), "btn go", i + 1 < round.length ? "→" : "✔"))
     }
 
     let saving = false
@@ -72,25 +71,32 @@ function runFind(round: Item[], all: Item[]) {
       urls.forEach((u) => URL.revokeObjectURL(u))
       results.push(r)
       i++
-      if (last) done()
-      else card()
+      if (i < round.length) card()
+      else done()
     }
 
     const tap = (c: Item, el: HTMLButtonElement) => {
-      if (over || el.disabled) return
+      if (over || el.disabled) return // guard() already drops a second tap within 300 ms
       if (judge(c, target)) {
         el.classList.add("right")
-        tell(`Yes. ${target.text}.`)
+        status.textContent = `Yes. ${target.text}.`
+        sayPrompt(`Yes. ${target.text}.`)
         finishWord(true)
         return
       }
       wrong++
       el.classList.add("wrong")
       el.disabled = true
-      if (wrong < MAX_WRONG) return tell("Not that one. Listen again.", `Not that one. Listen again: ${target.text}.`)
-      grid.querySelector('[data-right="1"]')?.classList.add("right")
-      tell(`This one is ${target.text}.`)
-      finishWord(false)
+      if (wrong >= MAX_WRONG) {
+        const right = grid.querySelector<HTMLButtonElement>('[data-right="1"]')
+        right?.classList.add("right")
+        status.textContent = `This one is ${target.text}.`
+        sayPrompt(`This one is ${target.text}.`)
+        finishWord(false)
+      } else {
+        status.textContent = "Not that one. Listen again."
+        sayPrompt(`Not that one. Listen again: ${target.text}.`) // the screen says "Not that one. Listen again."
+      }
     }
 
     const grid = h("div", { class: `grid4 n${choices.length}` }, ...choices.map((c, k) => {
@@ -105,18 +111,19 @@ function runFind(round: Item[], all: Item[]) {
         el.classList.add("text")
         el.append(h("span", {}, c.text))
       }
-      el.onclick = guard(() => tap(c, el))
+      el.onclick = guard(() => tap(c, el)) // click covers touch, mouse, Enter and Space
       return el
     }))
 
     dock.replaceChildren(again)
     show("find", () => void findPick(),
-      h("div", { class: "prompt" }, h("h1", { class: "cue" }, "Which one is it?"), speakerButton("Hear the word again", () => void speak(target.text))),
+      h("div", { class: "prompt" }, h("h1", { class: "cue" }, "Which one is it?"), speakerBtn(target.text)),
       h("p", { class: "count" }, `${i + 1} of ${round.length}`),
       grid,
       status,
       dock,
     )
+    // Say the word once the screen is up. Start/Next was a tap, so the browser allows sound.
     setTimeout(() => speak(target.text), pace().sayWordAfterMs)
   }
 
@@ -136,3 +143,9 @@ function runFind(round: Item[], all: Item[]) {
   card()
 }
 
+/** The speaker next to "Which one is it?" says the word again: that is the question here. */
+function speakerBtn(word: string) {
+  const b = h("button", { class: "speaker", type: "button", onclick: guard(() => void speak(word)) }, icon("🔊"))
+  b.setAttribute("aria-label", "Hear the word again")
+  return b
+}

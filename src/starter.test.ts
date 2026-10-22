@@ -9,7 +9,7 @@ const pngPath = (img: string) => new URL(`../public/${img}`, import.meta.url)
 
 describe("starter set", () => {
   it("has a picture for every word and no repeats", () => {
-    expect(STARTER.every((s) => (s.pic ? 1 : 0) + (s.img ? 1 : 0) === 1)).toBe(true)
+    expect(STARTER.every((s) => (s.pic ? 1 : 0) + (s.img ? 1 : 0) === 1)).toBe(true) // exactly one picture each
     expect(new Set(STARTER.map((s) => s.text.toLowerCase())).size).toBe(STARTER.length)
   })
   it("never uses the same picture twice", () => {
@@ -28,8 +28,8 @@ describe("starter set", () => {
   })
   it("has one single emoji for each emoji word (no joined sequences or flags)", () => {
     for (const s of emojis) {
-      expect(s.pic.includes("\u200d")).toBe(false)
-      expect(/[\u{1F1E6}-\u{1F1FF}]/u.test(s.pic)).toBe(false)
+      expect(s.pic.includes("\u200d")).toBe(false) // zero-width joiner
+      expect(/[\u{1F1E6}-\u{1F1FF}]/u.test(s.pic)).toBe(false) // flag letters
       expect([...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(s.pic)]).toHaveLength(1)
     }
   })
@@ -43,9 +43,9 @@ describe("starter set", () => {
       expect(c.img).toMatch(/^pics\/[a-z-]+\.png$/)
       expect(existsSync(pngPath(c.img))).toBe(true)
       const b = readFileSync(pngPath(c.img))
-      expect([...b.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-      expect(b.readUInt32BE(16)).toBe(256)
-      expect(b.readUInt32BE(20)).toBe(256)
+      expect([...b.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) // PNG signature
+      expect(b.readUInt32BE(16)).toBe(256) // width in the IHDR chunk
+      expect(b.readUInt32BE(20)).toBe(256) // height
       expect(b.length).toBeLessThan(8_000)
       total += b.length
     }

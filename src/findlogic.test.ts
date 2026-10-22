@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { pickChoices, pickRound, judge, resultOf, summarise, shuffle, MAX_WRONG } from "./findlogic"
 
+// Same "random" numbers every run.
 const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
 const list = ["cup", "chair", "dog", "remote", "Maria", "keys"].map((text, i) => ({ id: i + 1, text }))
 
@@ -13,7 +14,7 @@ describe("pickChoices", () => {
     }
   })
   it("never repeats a card or shows another card with the same word", () => {
-    const pool = [...list, { id: 99, text: "Cup " }]
+    const pool = [...list, { id: 99, text: "Cup " }] // same word, different item
     for (let s = 1; s < 50; s++) {
       const c = pickChoices(list[0], pool, 4, seeded(s))
       const texts = c.map((x) => x.text.trim().toLowerCase())
